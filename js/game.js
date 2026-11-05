@@ -9,7 +9,7 @@ B.Game = (function () {
     balls: 0, totalBalls: 0,
     segs: 2,
     state: 'idle',        // idle 只有菜单；aim 可以瞄；fly 球在飞；over 已结束
-    mode: 'marble',       // marble = 第一季弹珠解谜；s2 = 第二季无尽躲避（合集模式切换）
+    mode: 'marble',       // marble = 弹珠解谜；runner = 无尽冲刺（两个独立游戏，互不耦合）
     aiming: false, mx: 0, my: 0, aimAngle: -Math.PI / 2, power: 1,
     marker: null,            // 发射标记：鼠标点哪就在哪放，球从这里进框（封闭框里出不来）
     preview: null,
@@ -23,7 +23,9 @@ B.Game = (function () {
   };
 
   var lvcache = {};
-  var LVKEY = 'bounce.lv.';
+  // 关卡缓存带版本戳：棋盘几何或生成规则一变就换前缀，旧缓存自然失效（不删玩家数据）。
+  // 不换前缀会读到旧尺寸的关卡，墙按新几何算、格子按旧关卡算 → 预测线与实际弹道错位。
+  var LVKEY = 'bounce.lv.v27.';
 
   // 取第 n 关：先内存 → 再本地缓存 → 最后现场生成（生成结果存起来，第二次秒开）
   function getLevel(n) {
@@ -43,16 +45,18 @@ B.Game = (function () {
   }
 
   function load(n) {
-    if (n > 200) n = 200;                          // 弹珠模式 1–200 关（100+ 用更大的动态地图）
-    g.mode = 'marble';                            // 必须显式复位，否则从其他模式退回后仍跑错主循环
-    if (B.Music) B.Music.stop();                  // 离开其他玩法 → 停背景音乐
-    var geo = B.Gen.geoFor(n);
-    B.Board.applyGeo(geo.cols, geo.rows);          // 把世界坐标系铺成这一关的尺寸（大地图自动缩放适配屏幕）
-    if (B.Render) B.Render.resize();               // 重新算缩放，适配新尺寸
+    if (n > 200) n = 200;                          // 弹珠解谜 1–200 关（100+ 用更大的动态地图）
+    g.mode = 'marble';                            // 必须显式复位，否则从其他游戏退回后仍跑错主循环
+    if (B.Music) B.Music.stop();                  // 离开无尽冲刺 → 停背景音乐
     var st = Meta.stats();
     g.n = n;
     g.level = getLevel(n);
-    g.board = Bd.fromLevel(g.level);
+    // 几何跟着「这一关实际的棋盘」走，而不是跟着 geoFor(n) 走：
+    // 缓存里的关卡可能来自旧版本，先 applyGeo 会造成墙与格子错位（真 bug）。
+    var lv = g.level;
+    B.Board.applyGeo(lv.cols || B.Gen.geoFor(n).cols, (lv.rows && lv.rows.length) || B.Gen.geoFor(n).rows);
+    if (B.Render) B.Render.resize();               // 重新算缩放，适配新尺寸
+    g.board = Bd.fromLevel(lv);
     g.segs = st.segs;
     var mercy = Meta.mercyBalls(n);
     g.totalBalls = (g.level.balls || 4) + st.extraBalls + mercy;
@@ -124,13 +128,14 @@ B.Game = (function () {
     }
   }
 
-  // 第二季入口：进入无尽躲避模式（合集的第一个不同玩法）。用到与弹珠完全不同的操作与物理。
-  function startSeason2() {
-    B.Board.applyGeo(9, 11);                       // 复位几何（可能刚从大地图弹珠关退回）
+  // 无尽冲刺入口：一个独立游戏，和弹珠解谜用完全不同的操作与物理。
+  function startRunner() {
+    var geo = B.Gen.geoFor(1);
+    B.Board.applyGeo(geo.cols, geo.rows);          // 复位几何（可能刚从大地图弹珠关退回）
     if (B.Render) B.Render.resize();
-    g.mode = 's2';
-    if (B.Music) B.Music.start();                  // 进第二季 → 起背景音乐（神庙逃亡式律动）
-    B.S2.init();
+    g.mode = 'runner';
+    if (B.Music) B.Music.start();                  // 进无尽冲刺 → 起背景音乐
+    B.Runner.init();
     var pb = document.getElementById('phaseBanner');
     if (pb) {
       pb.innerHTML = '无尽冲刺<small>方向键 / 拖动 躲开下落方块 —— 活得越久越好</small>';
@@ -197,12 +202,6 @@ B.Game = (function () {
   function fire() {
     if ((g.state !== 'aim' && g.state !== 'fly') || g.balls <= 0) return;
     shoot(g.aimAngle);
-  }
-
-  function angleNow() {
-    var dx = g.mx - g.board.launchX, dy = g.my - C.LAUNCH_Y;
-    if (Math.hypot(dx, dy) < 12) return null;   // 太近，方向没意义
-    return U.normAngle(Math.atan2(dy, dx));
   }
 
   // 预测：跑一发完整模拟（内部克隆棋盘，不会动真实局面）。出生点 = 当前发射标记。
@@ -431,7 +430,7 @@ B.Game = (function () {
   }
 
   function restart() {
-    if (g.mode === 's2') { startSeason2(); A.play('click'); return; }
+    if (g.mode === 'runner') { startRunner(); A.play('click'); return; }
     var n = g.n;
     load(n);
     A.play('click');
@@ -447,7 +446,7 @@ B.Game = (function () {
   }
 
   return {
-    g: g, load: load, getLevel: getLevel, startSeason2: startSeason2,
+    g: g, load: load, getLevel: getLevel, startRunner: startRunner,
     aimStart: aimStart, aimMove: aimMove, aimEnd: aimEnd, aimCancel: aimCancel,
     nudgeAngle: nudgeAngle, nudgePower: nudgePower, fire: fire,
     update: update, undo: undo, restart: restart,
@@ -457,29 +456,62 @@ B.Game = (function () {
 })();
 
 // ============================================================================
-// 合集注册表：BOUNCE 是"合集"外壳，每个游戏都是一条独立入口。
-// 以后加新游戏 = 往 B.Games.add(...) 里加一条，首页（screenHub）会自动多出一张卡片；
-// 弹珠模式（第一季）与无尽冲刺（第二季）互不耦合，谁也不依赖谁。
+// 游戏注册表：大厅只认这张表，每个游戏都是一条完全独立的入口。
+// 加新游戏 = B.Games.add({ id, name, tag, icon, desc, category, progress, resume, enter, shop })
+// 大厅自动多一张卡、自动进分类、自动被搜索 —— 不用改任何界面代码。
 // ============================================================================
 B.Games = (function () {
-  var list = [
+  var arr = [
     {
-      id: 'marble', name: '弹珠模式', tag: '第 1–200 关 · 预测即真实',
+      id: 'marble', name: '弹珠解谜', tag: '益智 · 200 关', category: '益智',
       icon: '◉',
-      desc: '球有限，弹道可见。打你算好的那条线——没用掉的球变成金币。',
-      enter: function () { B.UI.show('screenMenu'); },          // 进入弹珠模式的子菜单（继续 / 选关 / 强化）
-      shop: function () { B.UI.show('screenUpgrades'); }        // 弹珠模式的永久强化
+      desc: '用有限的球清空场上所有金色目标砖。按住拖动瞄准，虚线就是球真实会走的路线。',
+      progress: function () {
+        var done = B.Meta.clearedCount();
+        return { text: '已通关 ' + done + ' / 200', pct: Math.min(100, done / 200 * 100) };
+      },
+      resume: function () { B.UI.startLevel(B.Meta.data().cur || 1); },
+      enter: function () { B.UI.show('screenMenu'); },
+      shop: function () { B.UI.show('screenUpgrades'); }
     },
     {
-      id: 's2', name: '无尽冲刺', tag: '方向键闪避 · 活得越久越好',
+      id: 'runner', name: '无尽冲刺', tag: '动作 · 刷分', category: '动作',
       icon: '⚡',
-      desc: '左右躲开下落方块；撞到掉一条命，命没了就结束。阵亡金币不丢——存进合集金库买永久强化。',
-      enter: function () { B.Game.startSeason2(); },            // 直接进无尽躲避（完全不同的操作与物理）
-      shop: function () { B.UI.show('screenS2Shop'); }          // 第二季的"铭文"式强化
+      desc: '左右躲开不断落下的方块，活得越久分越高。沿路能捡护盾、缓速和金币。',
+      progress: function () {
+        var best = B.Runner.best();
+        return { text: best ? '最高分 ' + best : '还没开跑', pct: Math.min(100, (best || 0) / 30) };
+      },
+      resume: function () { B.UI.startRunner(); },
+      enter: function () { B.UI.startRunner(); },
+      shop: function () { B.UI.show('screenRunnerShop'); }
     }
   ];
+
+  var LAST_KEY = 'bounce.lastGame';
+  function lastId() { try { return localStorage.getItem(LAST_KEY) || ''; } catch (e) { return ''; } }
+  function touch(id) { try { localStorage.setItem(LAST_KEY, id); } catch (e) { } }
+  function get(id) { for (var i = 0; i < arr.length; i++) if (arr[i].id === id) return arr[i]; return null; }
+  function categories() {
+    var out = [], seen = {};
+    for (var i = 0; i < arr.length; i++) {
+      var c = arr[i].category || '其它';
+      if (!seen[c]) { seen[c] = 1; out.push(c); }
+    }
+    return out;
+  }
+  function add(g) {
+    if (!g || !g.id) return;
+    for (var i = 0; i < arr.length; i++) if (arr[i].id === g.id) { arr[i] = g; return; }
+    arr.push(g);
+  }
+  function enterGame(id) { var g = get(id); if (!g) return; touch(id); (g.enter || g.resume || function () { })(); }
+  function resumeGame(id) { var g = get(id); if (!g) return; touch(id); (g.resume || g.enter || function () { })(); }
+
   return {
-    list: function () { return list; },
-    add: function (g) { list.push(g); }
+    list: function () { return arr.slice(); },
+    add: add, get: get, categories: categories,
+    lastId: lastId, last: function () { return get(lastId()); },
+    enterGame: enterGame, resumeGame: resumeGame
   };
 })();

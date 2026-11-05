@@ -1,27 +1,26 @@
-// season2.js —— 第二季：方向键 / 拖拽操控的无尽躲避（合集模式的第一个样板）
+// runner.js —— 无尽冲刺：方向键 / 拖拽操控的躲避刷分游戏（独立游戏，不依赖弹珠解谜）
 //
-// 设计取舍（很重要，跟第一季的红线区分开）：
-//   第一季（弹珠解谜）是"预测=真实、绝不靠运气"——所以每一关都是确定性、可反复算的。
-//   第二季是街机式"刷分"玩法，对标神庙逃亡（Temple Run）/ 跳一跳（Jump Jump）这类——
-//   它们的"不确定性"来自程序化生成 + 技巧上限 + 分数追逐，而不是掷骰子决定胜负。
-//   所以这里用 Math.random 生成下落障碍的布局，属于这一类玩法的正常手法，不违背第一季的灵魂。
-//   操作：← → 或拖动屏幕，让小球左右躲开下落方块；活得越久分越高，撞到就掉一条命，命没了才结束。
+// 设计取舍（跟弹珠解谜的红线区分开）：
+//   弹珠解谜是"预测=真实、绝不靠运气"——每一关都确定性、可反复算。
+//   无尽冲刺是街机式刷分，对标神庙逃亡（Temple Run）/ 跳一跳（Jump Jump）这类——
+//   不确定性来自程序化生成 + 技巧上限 + 分数追逐，而不是掷骰子决定一发的结果。
+//   所以这里用 Math.random 生成下落障碍的布局，属于这类玩法的正常手法。
+//   操作：← → 或拖动屏幕，让小球左右躲开下落方块；活得越久分越高，命没了才结束。
 //
-// 关键修正（用户实测反馈的 bug）：
-//   旧版每一行的"缝"位置是整条宽度里随机撒的，两行缝之间可能相距 600+ px，而球一秒只能挪 400px，
-//   于是出现"按住方向键也挪不过去、必死"的死局。现在每行的缝被限制在"上一行缝的可达范围内"，
-//   数学上保证：只要上一行你站对了，这一行一定够得着 —— 没有不可能通过的行。
-//   难度随分数缓升（开局很宽很慢，越后越窄越快），而不是一上来就给死局。
+// 公平性红线：每行"缝"的位置锁在上一行缝的可达范围内，数学上不存在躲不过去的死局。
+//   旧版随机撒缝会出现"按住方向键也挪不过去、必死"的局面，已修掉。
+//   难度随分数缓升（开局宽而慢，越后越窄越快），而不是一上来就给死局。
 //
-// 经济系统（用户要的"铭文"式持久强化）：
-//   每一行安全通过 +1 金币（本局跑出来的货币），阵亡时存进合集金库（bounce.coins，与弹珠模式共用）。
-//   金库可在"第二季 · 强化"里买永久升级：多命 / 护盾 / 缓速 / 巨球。死了不掉，跨局生效。
+// 经济：每行安全通过 +1 金币，阵亡时存进统一金库（bounce.coins，两个游戏共用）。
+//   金库可在本游戏的强化页买永久升级：多命 / 护盾 / 缓速 / 巨球。死了不掉，跨局生效。
 var B = window.B = window.B || {};
 
-B.S2 = (function () {
+B.Runner = (function () {
   var C = B.C, U = B.U;
+  // 画布尺寸不能只在模块加载时取一次：弹珠大地图会改 C.W/C.H，切回来必须跟着变。
   var W = C.W, H = C.H;
-  var VX = 420;          // 小球水平速度 px/s（比旧版 380 略快，配合可达性约束手感更跟手）
+  function syncWH() { W = B.C.W; H = B.C.H; }
+  var VX = 420;          // 小球水平速度 px/s（配合可达性约束的手感）
 
   // 强化定义（类似王者荣耀铭文：等级越高越强，费用递增）。id 与本地存档键一致。
   var UP = [
@@ -34,7 +33,8 @@ B.S2 = (function () {
   function upDef(id) { for (var i = 0; i < UP.length; i++) if (UP[i].id === id) return UP[i]; return null; }
 
   // ---------- 本地存档（强化等级 + 最高分），全部 try/catch，隐私模式写不了也不崩 ----------
-  // 金币走合集统一金库 B.U.coins()（bounce.coins），和弹珠模式共用同一个池子。
+  // 键名沿用历史值 bounce.s2up / bounce.s2best，是为了不丢老玩家的强化与最高分；只是内部名字。
+  // 金币走统一金库 B.U.coins()（bounce.coins），两个游戏共用同一个池子。
   function loadUp() {
     try { var o = JSON.parse(localStorage.getItem('bounce.s2up') || '{}'); } catch (e) { var o = {}; }
     var r = {}; for (var i = 0; i < UP.length; i++) r[UP[i].id] = o[UP[i].id] || 0; return r;
@@ -59,6 +59,7 @@ B.S2 = (function () {
   var st = null;
 
   function reset() {
+    syncWH();                       // 几何可能刚被弹珠大地图改过
     var up = loadUp();
     st = {
       x: W / 2, y: H - 130, r: 16 + 3 * (up.fat || 0),
@@ -211,6 +212,7 @@ B.S2 = (function () {
 
   function draw(ctx, t) {
     if (!st) return;
+    syncWH();
     var g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, '#0a0f1e'); g.addColorStop(1, '#05060c');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
@@ -295,7 +297,8 @@ B.S2 = (function () {
     init: init, update: update, draw: draw,
     setTarget: setTarget, nudge: nudge, setDir: setDir, restart: restart,
     state: function () { return st; },
-    // 经济 / 强化接口（给 UI 的商店用）
+    best: loadBest,
+    // 经济 / 强化接口（给 UI 的商店与大厅进度用）
     shopData: function () { return { wallet: B.U.coins(), up: loadUp(), defs: UP }; },
     wallet: function () { return B.U.coins(); }, upgrades: loadUp, shopDefs: function () { return UP; },
     costOf: costOf, canBuy: canBuy, buy: buy

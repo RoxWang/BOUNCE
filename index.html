@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="description" content="BOUNCE · 一个游戏合集：球有限、弹道可见——把碎片时间变成你能掌控的几局。">
+<meta name="description" content="BOUNCE · 打开浏览器就能玩的小游戏：弹珠解谜、无尽冲刺。">
 <title>BOUNCE</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%233fd6ff'/%3E%3Cpath d='M4 26 L28 10' stroke='%23ffb02e' stroke-width='3' stroke-linecap='round' stroke-dasharray='4 3'/%3E%3C/svg%3E">
-<link rel="manifest" href="manifest.webmanifest?v=26">
+<link rel="manifest" href="manifest.webmanifest?v=27">
 <meta name="theme-color" content="#05060c">
 <link rel="apple-touch-icon" href="icon-512.png">
-<link rel="stylesheet" href="style.css?v=26">
+<link rel="stylesheet" href="style.css?v=27">
 </head>
 <body>
 <div id="app">
@@ -24,7 +24,8 @@
   <!-- In-game HUD -->
   <div id="hud" class="hidden">
     <div class="top">
-      <button id="btnBack" class="chip">← 菜单</button>
+      <button id="btnBack" class="chip">← 大厅</button>
+      <button id="btnMenu" class="chip">菜单</button>
       <div class="lvname"><b id="hudName">—</b><span id="hudGoal">—</span></div>
       <div class="topright">
         <span id="hudCoin" class="coin">◈ 0</span>
@@ -43,44 +44,66 @@
     <div class="bottom">
       <button id="btnUndo" class="act hidden">撤回<kbd>Z</kbd></button>
       <button id="btnRestart" class="act">重来<kbd>R</kbd></button>
-        <button id="btnNext" class="act primary hidden">下一关<kbd>N</kbd></button>
-      </div>
+      <button id="btnNext" class="act primary hidden">下一关<kbd>N</kbd></button>
+    </div>
 
-      <div id="pad" class="pad">
-        <button id="padRotL" class="pk">⟲</button>
-        <button id="padPwrU" class="pk">▲</button>
-        <button id="padFire" class="pk fire">●</button>
-        <button id="padPwrD" class="pk">▼</button>
-        <button id="padRotR" class="pk">⟳</button>
-      </div>
-  </div>
-
-  <!-- Collection hub: BOUNCE shell, one card per game (driven by B.Games registry) -->
-  <div id="screenHub" class="screen">
-    <div class="mi hub">
-      <div class="glow"></div>
-      <h1>BOUNCE</h1>
-      <p class="sub">合集 · 把碎片时间变成你能掌控的几局</p>
-      <div class="mstats">
-        <div><b id="hCoin">0</b><span>金币（合集）</span></div>
-        <div><b id="hDone">0</b><span>已通关</span></div>
-      </div>
-      <div id="gameCards" class="gamecards"></div>
-      <div class="hubfoot">
-        <button id="btnHubReset" class="btn ghost small">重置存档</button>
-      </div>
+    <div id="pad" class="pad">
+      <button id="padRotL" class="pk">⟲</button>
+      <button id="padPwrU" class="pk">▲</button>
+      <button id="padFire" class="pk fire">●</button>
+      <button id="padPwrD" class="pk">▼</button>
+      <button id="padRotR" class="pk">⟳</button>
     </div>
   </div>
 
-  <!-- Marble submenu -->
+  <!-- Game hall: one card per game, driven by the B.Games registry -->
+  <div id="screenHub" class="screen hub-screen">
+    <div class="portal">
+      <header class="portal-head">
+        <div class="brand">
+          <div class="brand-mark">◉</div>
+          <div class="brand-txt">
+            <h1>BOUNCE</h1>
+            <p>打开浏览器就能玩的小游戏</p>
+          </div>
+        </div>
+        <div class="portal-wallet">
+          <span class="coin">◈ <b id="hCoin">0</b></span>
+          <span class="portal-stat"><b id="hDone">0</b> 关已通关</span>
+          <button id="btnHubSound" class="chip">♪</button>
+          <button id="btnHubReset" class="chip ghost small">重置</button>
+        </div>
+      </header>
+
+      <div id="hubContinue" class="portal-continue hidden">
+        <div class="pc-txt"><span>上次在玩</span><b id="hubLastName">—</b></div>
+        <button id="btnHubContinue" class="btn primary">继续玩</button>
+      </div>
+
+      <div class="portal-toolbar">
+        <div id="hubCats" class="cats"></div>
+        <label class="search"><span>⌕</span><input id="hubSearch" type="search" placeholder="找游戏" autocomplete="off"></label>
+      </div>
+
+      <div id="gameCards" class="gamecards"></div>
+      <p id="hubEmpty" class="portal-empty hidden">没找到这个游戏</p>
+
+      <footer class="portal-foot">
+        <span>拖动或方向键操作 · <kbd>Esc</kbd> 随时回大厅</span>
+        <span>进度自动存在浏览器里</span>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Marble puzzle menu -->
   <div id="screenMenu" class="screen">
     <div class="mi">
       <div class="glow"></div>
-      <button id="btnMenuBack" class="backlink">← 合集主页</button>
-      <h1>弹珠模式</h1>
-      <p class="sub">第 1–200 关 · 球有限，弹道可见</p>
+      <button id="btnMenuBack" class="backlink">← 大厅</button>
+      <h1>弹珠解谜</h1>
+      <p class="sub">200 关全开 · 球有限，弹道可见</p>
       <div class="mstats">
-        <div><b id="mCoin">0</b><span>金币（合集）</span></div>
+        <div><b id="mCoin">0</b><span>金币</span></div>
         <div><b id="mDone">0</b><span>已通关</span></div>
         <div><b id="mBest">—</b><span>最远</span></div>
       </div>
@@ -98,12 +121,24 @@
   <div id="screenLevels" class="screen hidden">
     <div class="li">
       <div class="lhead"><h2>选择关卡</h2><span id="lvProgress"></span></div>
+      <div class="ltools">
+        <div id="lvRanges" class="ranges">
+          <button class="range on">1–50</button>
+          <button class="range">51–100</button>
+          <button class="range">101–150</button>
+          <button class="range">151–200</button>
+        </div>
+        <div class="jump">
+          <input id="lvJump" type="number" min="1" max="200" placeholder="关号">
+          <button id="btnLvJump" class="btn ghost small">跳转</button>
+        </div>
+      </div>
       <div id="lvGrid" class="grid"></div>
       <button id="btnLvBack" class="btn ghost">返回</button>
     </div>
   </div>
 
-  <!-- Upgrades -->
+  <!-- Marble upgrades -->
   <div id="screenUpgrades" class="screen hidden">
     <div class="li">
       <div class="lhead">
@@ -116,17 +151,17 @@
     </div>
   </div>
 
-  <!-- Season 2 upgrades (rune-style permanent upgrades, shared wallet) -->
-  <div id="screenS2Shop" class="screen hidden">
+  <!-- Runner upgrades -->
+  <div id="screenRunnerShop" class="screen hidden">
     <div class="li">
       <div class="lhead">
         <h2>无尽冲刺 · 强化</h2>
-        <span class="coin big">◈ <b id="s2Wallet">0</b></span>
+        <span class="coin big">◈ <b id="runnerWallet">0</b></span>
       </div>
-      <p class="uphint">玩无尽冲刺攒金币，买永久强化（像铭文）。阵亡保留，跨局生效。</p>
-      <div id="s2UpList" class="uplist"></div>
-      <button id="btnS2Mute" class="btn ghost">🔊 音乐：开</button>
-      <button id="btnS2Back" class="btn ghost">返回主页</button>
+      <p class="uphint">跑出来的金币买永久强化，阵亡保留，跨局生效。</p>
+      <div id="runnerUpList" class="uplist"></div>
+      <button id="btnRunnerMute" class="btn ghost">🔊 音乐：开</button>
+      <button id="btnRunnerBack" class="btn ghost">返回大厅</button>
     </div>
   </div>
 
@@ -140,6 +175,7 @@
         <button id="btnAgain" class="btn primary">再玩一次</button>
         <button id="btnNext2" class="btn ghost">下一关</button>
         <button id="btnHome" class="btn ghost">选关</button>
+        <button id="btnResultHub" class="btn ghost">回大厅</button>
       </div>
     </div>
   </div>
@@ -150,7 +186,7 @@
       <h2>玩法介绍</h2>
       <div class="hl">
         <div class="step"><b>目标</b><span>打碎所有<b class="gold">金色目标砖</b>即可过关，其它砖可打可不打。</span></div>
-        <div class="step"><b>第一步 · 瞄准</b><span>在场上<b>按住往上拖</b>，或用<b>←→ 调角度、↑↓ 调力度、空格发射</b>（手机用屏幕箭头）。会出现一条虚线——那就是球真实会走的路线。</span></div>
+        <div class="step"><b>第一步 · 瞄准</b><span>在场上<b>按住往任意方向拖</b>，往哪拖就往哪打；也可以用<b>←→ 调角度、↑↓ 调力度、空格发射</b>（手机用屏幕箭头）。会出现一条虚线——那就是球真实会走的路线。四面都是墙，上下左右都能打。</span></div>
         <div class="step"><b>第二步 · 谋划</b><span>虚线只显示前 <b id="howSeg">2</b> 次反弹，之后是黑的。你能算多远，就是你的本事。<b>强化能让你看得更远。</b></span></div>
         <div class="step"><b>第三步 · 省球</b><span>球有限。清完目标前球用光 = <b class="red">游戏结束</b>。所以真正的难题不是"能不能过"，而是<b>"用几颗球过"</b>——没用掉的球变成金币。</span></div>
 
@@ -168,27 +204,26 @@
         <div><b>连击</b><span>一颗球不落地连续命中累积连击；每 6 连击 +1 伤害。所以<b>穿缝比硬刚更划算</b>。到 12 连击球尾变金色。</span></div>
         <div><b>绝杀</b><span>用<b>最后一颗球</b>清掉最后一个目标就算绝杀：<b class="gold">金币 ×2</b>。省球不只是省——是存下了一记绝杀。</span></div>
         <div><b>金币</b><span>清场给金币，<b>剩的球越多 = 金币越多</b>。去「强化」买永久升级，阵亡也保留。</span></div>
-        <div><b>快捷键</b><span><kbd>←→</kbd> 角度 · <kbd>↑↓</kbd> 力度 · <kbd>空格</kbd> 发射 · <kbd>R</kbd> 重来 · <kbd>Z</kbd> 撤回 · <kbd>N</kbd> 下一关 · <kbd>Esc</kbd> 返回</span></div>
+        <div><b>快捷键</b><span><kbd>←→</kbd> 角度 · <kbd>↑↓</kbd> 力度 · <kbd>空格</kbd> 发射 · <kbd>R</kbd> 重来 · <kbd>Z</kbd> 撤回 · <kbd>N</kbd> 下一关 · <kbd>Esc</kbd> 回大厅</span></div>
       </div>
       <button id="btnHowBack" class="btn primary">知道了</button>
     </div>
   </div>
 </div>
 
-<!-- ?v= is the cache stamp: this domain used to host other games, the browser may still hold old files with the same name.
-     Bump every v= by one each time you change code, so the browser re-downloads. -->
-<script src="js/util.js?v=26"></script>
-<script src="js/audio.js?v=26"></script>
-<script src="js/music.js?v=26"></script>
-<script src="js/board.js?v=26"></script>
-<script src="js/physics.js?v=26"></script>
-<script src="js/levelgen.js?v=26"></script>
-<script src="js/fx.js?v=26"></script>
-<script src="js/render.js?v=26"></script>
-<script src="js/meta.js?v=26"></script>
-<script src="js/game.js?v=26"></script>
-<script src="js/season2.js?v=26"></script>
-<script src="js/ui.js?v=26"></script>
-<script src="js/main.js?v=26"></script>
+<!-- ?v= is the cache stamp: bump every v= by one each time code changes, so the browser re-downloads. -->
+<script src="js/util.js?v=27"></script>
+<script src="js/audio.js?v=27"></script>
+<script src="js/music.js?v=27"></script>
+<script src="js/board.js?v=27"></script>
+<script src="js/physics.js?v=27"></script>
+<script src="js/levelgen.js?v=27"></script>
+<script src="js/fx.js?v=27"></script>
+<script src="js/render.js?v=27"></script>
+<script src="js/meta.js?v=27"></script>
+<script src="js/game.js?v=27"></script>
+<script src="js/runner.js?v=27"></script>
+<script src="js/ui.js?v=27"></script>
+<script src="js/main.js?v=27"></script>
 </body>
 </html>

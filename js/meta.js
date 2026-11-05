@@ -65,7 +65,7 @@ B.Meta = (function () {
       }
     } catch (e) { S = fresh(); }
     // —— 合集统一金库迁移（一次性）——
-    // 旧版：弹珠模式记在 S.coin、第二季记在 bounce.s2coin，两套账本分开。
+    // 旧版：弹珠解谜记在 S.coin、无尽冲刺记在 bounce.s2coin，两套账本分开。
     // 现在两套并入同一个合集钱包 bounce.coins，任何游戏赚的金币都进同一个池子。
     try {
       var legacy = (S.coin || 0);

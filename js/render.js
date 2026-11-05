@@ -626,8 +626,8 @@ B.Render = (function () {
     FX.drawFlash(ctx, vw, vh);
   }
 
-  // 第二季（无尽躲避）每帧：复用世界坐标系变换，让 S2.draw 直接在世界坐标里画
-  function frameS2(s2, t) {
+  // 无尽冲刺每帧：复用世界坐标系变换，让 Runner.draw 直接在世界坐标里画
+  function frameRunner(runner, t) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, vw, vh);
     ctx.fillStyle = '#05060c'; ctx.fillRect(0, 0, vw, vh);
@@ -637,7 +637,7 @@ B.Render = (function () {
 
     ctx.save();
     ctx.beginPath(); ctx.rect(-4, -4, C.W + 8, C.H + 8); ctx.clip();
-    s2.draw(ctx, t);
+    runner.draw(ctx, t);
     ctx.restore();
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -645,7 +645,7 @@ B.Render = (function () {
   }
 
   return {
-    init: init, resize: resize, frame: frame, frameS2: frameS2, toWorld: toWorld, view: view,
+    init: init, resize: resize, frame: frame, frameRunner: frameRunner, toWorld: toWorld, view: view,
     hpColor: hpColor, ctx: function () { return ctx; }
   };
 })();

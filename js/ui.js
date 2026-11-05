@@ -1,17 +1,26 @@
-// ui.js —— 界面：菜单 / 选关 / 强化站 / 结算 / 怎么玩，以及 HUD 同步
+// ui.js —— 界面：游戏大厅 / 各游戏菜单 / 选关 / 强化 / 结算 / 玩法介绍 / HUD
+// 大厅只认 B.Games 注册表；加游戏不用改这里。
 var B = window.B = window.B || {};
 
 B.UI = (function () {
   var Meta = B.Meta, Game = B.Game, A = B.A, U = B.U, Gen = B.Gen;
   var $ = function (id) { return document.getElementById(id); };
-  var SCREENS = ['screenHub', 'screenMenu', 'screenLevels', 'screenUpgrades', 'screenS2Shop', 'screenResult', 'screenHow'];
+  var SCREENS = ['screenHub', 'screenMenu', 'screenLevels', 'screenUpgrades', 'screenRunnerShop', 'screenResult', 'screenHow'];
   var cur = 'screenHub';
-  var howReturn = 'screenHub';   // 从哪个界面进的「玩法介绍」，关闭后就回哪
+  var howReturn = 'screenHub';       // 从哪个界面进的「玩法介绍」，关闭后就回哪
+  var hubFilter = { cat: '全部', q: '' };
+  var lvRange = 0;                   // 选关分段 0..3（1–50 / 51–100 / 101–150 / 151–200）
+
+  // 离开无尽冲刺：把主循环切回弹珠并停掉音乐，否则冲刺的循环会在大厅背后继续跑，
+  // 把死局画面卡在菜单后面。
+  function leaveRunner() {
+    if (Game.g.mode !== 'runner') return;
+    Game.g.mode = 'marble';
+    Game.load(1);                   // load 内部会 stop 音乐、复位几何
+  }
 
   function show(name) {
-    // 切到任意"界面"（非对局）时：如果刚在无尽冲刺里，先把模式复位成弹珠背景，
-    // 否则第二季的循环会在主菜单背后继续跑、并把死局画面卡在菜单后面。
-    if (name && B.Game.g.mode === 's2') { B.Game.g.mode = 'marble'; B.Game.load(1); }
+    leaveRunner();
     for (var i = 0; i < SCREENS.length; i++) {
       var el = $(SCREENS[i]);
       if (el) el.classList.toggle('hidden', SCREENS[i] !== name);
@@ -21,7 +30,7 @@ B.UI = (function () {
     if (name === 'screenMenu') syncMenu();
     if (name === 'screenLevels') syncLevels();
     if (name === 'screenUpgrades') syncUpgrades();
-    if (name === 'screenS2Shop') syncS2Shop();
+    if (name === 'screenRunnerShop') syncRunnerShop();
     if (name === 'screenHub') syncHub();
   }
 
@@ -33,48 +42,90 @@ B.UI = (function () {
     $('hud').classList.remove('hidden');
   }
 
-  // ---------- 合集首页（BOUNCE 外壳）----------
+  // 从大厅进无尽冲刺：必须先关掉大厅这层界面，否则游戏在背后跑、玩家什么都看不见。
+  function startRunner() {
+    inGame();
+    Game.startRunner();
+    syncHud(true);
+  }
+
+  // ---------- 游戏大厅 ----------
   function syncHub() {
-    $('hCoin').textContent = U.fmt(B.U.coins());     // 合集统一金库
+    $('hCoin').textContent = U.fmt(U.coins());
     $('hDone').textContent = Meta.clearedCount();
+
+    var last = B.Games.last();
+    var cont = $('hubContinue');
+    if (last) {
+      cont.classList.remove('hidden');
+      $('hubLastName').textContent = last.name;
+      $('btnHubContinue').onclick = function () { A.unlock(); A.play('click'); B.Games.resumeGame(last.id); };
+    } else {
+      cont.classList.add('hidden');
+    }
+
+    var cats = ['全部'].concat(B.Games.categories());
+    var catWrap = $('hubCats');
+    catWrap.innerHTML = '';
+    cats.forEach(function (c) {
+      var b = document.createElement('button');
+      b.className = 'cat' + (hubFilter.cat === c ? ' on' : '');
+      b.textContent = c;
+      b.onclick = function () { A.play('click'); hubFilter.cat = c; syncHub(); };
+      catWrap.appendChild(b);
+    });
+
+    var q = hubFilter.q.trim().toLowerCase();
+    var items = B.Games.list().filter(function (g) {
+      if (hubFilter.cat !== '全部' && (g.category || '其它') !== hubFilter.cat) return false;
+      if (!q) return true;
+      return ((g.name || '') + ' ' + (g.tag || '') + ' ' + (g.desc || '')).toLowerCase().indexOf(q) >= 0;
+    });
+
     var wrap = $('gameCards');
     wrap.innerHTML = '';
-    // 游戏卡片全部由 B.Games 注册表驱动 —— 加新游戏只需在 game.js 里 B.Games.add(...)，这里自动多一张卡
-    B.Games.list().forEach(function (g) {
-      var card = document.createElement('div');
-      card.className = 'gcard';
-      var acts = '<button class="btn primary genter">进入</button>';
+    items.forEach(function (g) {
+      var pr = g.progress ? g.progress() : null;
+      var acts = '<button class="btn primary genter">开始</button>';
       if (g.shop) acts += '<button class="btn ghost small gshop">强化</button>';
+      var card = document.createElement('article');
+      card.className = 'gcard';
       card.innerHTML =
-        '<div class="gico">' + g.icon + '</div>' +
-        '<div class="gbody"><b>' + g.name + '</b>' +
-        '<span class="gtag">' + g.tag + '</span>' +
-        '<span class="gdesc">' + g.desc + '</span></div>' +
+        '<div class="gico">' + (g.icon || '◉') + '</div>' +
+        '<div class="gbody">' +
+          '<div class="gtop"><b>' + g.name + '</b><span class="gtag">' + (g.tag || '') + '</span></div>' +
+          '<span class="gdesc">' + (g.desc || '') + '</span>' +
+          (pr ? '<div class="gprogress"><span>' + pr.text + '</span><i><em style="width:' +
+            Math.max(0, Math.min(100, pr.pct || 0)) + '%"></em></i></div>' : '') +
+        '</div>' +
         '<div class="gacts">' + acts + '</div>';
-      card.querySelector('.genter').onclick = function () { A.unlock(); A.play('click'); g.enter(); };
+      card.querySelector('.genter').onclick = function () { A.unlock(); A.play('click'); B.Games.enterGame(g.id); };
       if (g.shop) card.querySelector('.gshop').onclick = function () { A.unlock(); A.play('click'); g.shop(); };
       wrap.appendChild(card);
     });
+    $('hubEmpty').classList.toggle('hidden', items.length > 0);
   }
 
-  // ---------- 菜单（弹珠模式子菜单）----------
+  // ---------- 弹珠解谜菜单 ----------
   function syncMenu() {
     var S = Meta.data();
-    $('mCoin').textContent = U.fmt(B.U.coins());    // 合集统一金库
+    $('mCoin').textContent = U.fmt(U.coins());
     $('mDone').textContent = Meta.clearedCount();
-    $('mBest').textContent = S.maxLevel > 1 ? ('Level ' + (S.maxLevel - 1)) : '—';
+    $('mBest').textContent = S.maxLevel > 1 ? ('第 ' + (S.maxLevel - 1) + ' 关') : '—';
     $('mNext').textContent = S.cur || 1;
   }
 
-  // ---------- 选关 ----------
+  // ---------- 选关：分段 + 跳关，200 关全开 ----------
+  var RANGES = [[1, 50], [51, 100], [101, 150], [151, 200]];
   function syncLevels() {
     var S = Meta.data();
     var grid = $('lvGrid');
     grid.innerHTML = '';
-    // 不做任何解锁限制：全部 200 关一次性放出，玩家自由选（想打第 50 关就直接点第 50 关）
-    var top = 200;
+    var lo = RANGES[lvRange][0], hi = RANGES[lvRange][1];
     $('lvProgress').textContent = '全部 200 关 · 已通关 ' + Meta.clearedCount();
-    for (var n = 1; n <= top; n++) {
+    var btns = document.querySelectorAll('#lvRanges .range');
+    for (var bi = 0; bi < btns.length; bi++) btns[bi].classList.toggle('on', bi === lvRange);
+    for (var n = lo; n <= hi; n++) {
       (function (n) {
         var d = document.createElement('button');
         d.className = 'gcell';
@@ -89,10 +140,9 @@ B.UI = (function () {
     }
   }
 
-  // ---------- 强化站 ----------
+  // ---------- 弹珠解谜强化 ----------
   function syncUpgrades() {
-    var S = Meta.data();
-    $('upCoin').textContent = U.fmt(B.U.coins());    // 合集统一金库（与无尽冲刺共用）
+    $('upCoin').textContent = U.fmt(U.coins());
     var list = $('upList');
     list.innerHTML = '';
     Meta.UPS.forEach(function (u) {
@@ -112,28 +162,26 @@ B.UI = (function () {
       if (maxed) { btn.textContent = 'MAX'; btn.disabled = true; }
       else {
         btn.textContent = '◈ ' + U.fmt(cost);
-        btn.disabled = B.U.coins() < cost;
-        btn.onclick = function () {
-          if (Meta.buy(u.id)) { A.play('buy'); syncUpgrades(); }
-        };
+        btn.disabled = U.coins() < cost;
+        btn.onclick = function () { if (Meta.buy(u.id)) { A.play('buy'); syncUpgrades(); } };
       }
       row.appendChild(btn);
       list.appendChild(row);
     });
   }
 
-  // ---------- 第二季强化（铭文式持久强化）----------
-  function syncS2Shop() {
-    var data = B.S2.shopData();
-    $('s2Wallet').textContent = U.fmt(data.wallet);
-    var mb = $('btnS2Mute');
-    if (mb) mb.textContent = B.Music.isMuted() ? '🔇 Music: Off' : '🔊 Music: On';
-    var list = $('s2UpList');
+  // ---------- 无尽冲刺强化 ----------
+  function syncRunnerShop() {
+    var data = B.Runner.shopData();
+    $('runnerWallet').textContent = U.fmt(data.wallet);
+    var mb = $('btnRunnerMute');
+    if (mb) mb.textContent = B.Music.isMuted() ? '🔇 音乐：关' : '🔊 音乐：开';
+    var list = $('runnerUpList');
     list.innerHTML = '';
     data.defs.forEach(function (u) {
       var lv = data.up[u.id] || 0;
       var maxed = lv >= u.max;
-      var cost = B.S2.costOf(u.id);
+      var cost = B.Runner.costOf(u.id);
       var row = document.createElement('div');
       row.className = 'up' + (maxed ? ' max' : '');
       var pips = '';
@@ -148,7 +196,7 @@ B.UI = (function () {
       else {
         btn.textContent = '◈ ' + U.fmt(cost);
         btn.disabled = data.wallet < cost;
-        btn.onclick = function () { if (B.S2.buy(u.id)) { A.play('buy'); syncS2Shop(); } };
+        btn.onclick = function () { if (B.Runner.buy(u.id)) { A.play('buy'); syncRunnerShop(); } };
       }
       row.appendChild(btn);
       list.appendChild(row);
@@ -161,7 +209,6 @@ B.UI = (function () {
     $('hudName').textContent = '第 ' + n + ' 关';
     $('hudGoal').textContent = '生成中…';
     $('hudAuto').textContent = '';
-    // 让浏览器先把"出题中"画出来，再做可能要几百毫秒的关卡生成
     setTimeout(function () {
       Game.load(n);
       syncHud(true);
@@ -172,23 +219,25 @@ B.UI = (function () {
   var lastBalls = -1, lastTargets = -1, lastCombo = -1;
   function syncHud(force) {
     var g = Game.g;
-    var S = Meta.data();
-    $('hudCoin').textContent = '◈ ' + U.fmt(B.U.coins());    // 合集统一金库
-    // 第二季（无尽躲避）：没有"剩余球/目标/连击"这套，换成专门的提示
-    if (g.mode === 's2') {
+    $('hudCoin').textContent = '◈ ' + U.fmt(U.coins());
+    if (g.mode === 'runner') {
       $('hudName').textContent = '无尽冲刺';
       $('hudGoal').textContent = '方向键 / 拖动 躲开下落方块';
       var sb = document.querySelector('.statusbar');
       if (sb) sb.style.display = 'none';
+      $('btnMenu').classList.add('hidden');
+      $('btnUndo').classList.add('hidden');
+      $('btnNext').classList.add('hidden');
+      $('btnRestart').classList.add('hidden');
       var al = $('hudAuto');
       al.textContent = '← → 或拖动屏幕 · 撞到就结束 · 空格 / 点击重来';
       al.style.opacity = 1; al.className = 'autoline';
-      $('btnUndo').classList.add('hidden');
-      $('btnNext').classList.add('hidden');
       return;
     }
-    var sb = document.querySelector('.statusbar');
-    if (sb) sb.style.display = '';
+    var sb2 = document.querySelector('.statusbar');
+    if (sb2) sb2.style.display = '';
+    $('btnMenu').classList.remove('hidden');
+    $('btnRestart').classList.remove('hidden');
     if (!g.board) return;
     $('hudName').textContent = '第 ' + g.n + ' 关' + (g.level && g.level.name ? ' · ' + g.level.name : '');
     var tl = Game.targetsLeft();
@@ -207,7 +256,6 @@ B.UI = (function () {
       if (!force && g.combo > 0) flash('hudCombo'); lastCombo = g.combo;
     }
 
-    // 底部状态行：只在能瞄的时候说一句，不唠叨
     var line = $('hudAuto');
     if (g.state === 'aim') {
       var txt;
@@ -221,7 +269,7 @@ B.UI = (function () {
         txt = '松手发射 · 虚线就是球会走的路';
         line.className = 'autoline';
       } else {
-        txt = '按住往上拖 → 瞄准 → 松手';
+        txt = '按住往任意方向拖 → 瞄准 → 松手';   // 四面都是墙，上下左右都能打
         line.className = 'autoline';
       }
       line.textContent = txt;
@@ -274,52 +322,72 @@ B.UI = (function () {
   }
 
   // ---------- 绑定 ----------
+  function toggleSound() {
+    var on = A.toggle();
+    Meta.setSound(on);
+    $('btnSound').textContent = on ? '♪' : '✕';
+    var hb = $('btnHubSound');
+    if (hb) hb.textContent = on ? '♪' : '✕';
+  }
+
   function bind() {
-    // —— 合集首页（screenHub）——
+    // 大厅
+    $('hubSearch').addEventListener('input', function (e) { hubFilter.q = e.target.value; syncHub(); });
+    $('btnHubSound').onclick = function () { A.unlock(); toggleSound(); };
     $('btnHubReset').onclick = function () {
       if (confirm('清空所有存档？关卡、金币和强化都会丢失。')) { Meta.reset(); syncHub(); syncMenu(); }
     };
 
-    // —— 弹珠模式子菜单（screenMenu）——
+    // 弹珠解谜菜单
     $('btnPlay2').onclick = function () { A.unlock(); A.play('click'); startLevel(Meta.data().cur || 1); };
-    $('btnLv').onclick = function () { A.unlock(); A.play('click'); show('screenLevels'); };
+    $('btnLv').onclick = function () { A.unlock(); A.play('click'); lvRange = Math.floor(((Meta.data().cur || 1) - 1) / 50); if (lvRange > 3) lvRange = 3; show('screenLevels'); };
     $('btnUp').onclick = function () { A.unlock(); A.play('click'); show('screenUpgrades'); };
     $('btnHow').onclick = function () { A.unlock(); A.play('click'); howReturn = 'screenMenu'; show('screenHow'); };
     $('btnReset').onclick = function () {
       if (confirm('清空所有存档？关卡、金币和强化都会丢失。')) { Meta.reset(); syncHub(); syncMenu(); }
     };
-    $('btnMenuBack').onclick = function () { A.play('click'); show('screenHub'); };   // 弹珠子菜单 → 合集首页
+    $('btnMenuBack').onclick = function () { A.play('click'); show('screenHub'); };
 
-    // —— 选关 / 强化站返回 ——
+    // 选关：返回 / 分段 / 跳关
     $('btnLvBack').onclick = function () { A.play('click'); show('screenMenu'); };
+    var rb = document.querySelectorAll('#lvRanges .range');
+    for (var ri = 0; ri < rb.length; ri++) {
+      (function (btn, idx) {
+        btn.onclick = function () { A.play('click'); lvRange = idx; syncLevels(); };
+      })(rb[ri], ri);
+    }
+    $('btnLvJump').onclick = function () {
+      var n = parseInt($('lvJump').value, 10);
+      if (!(n >= 1 && n <= 200)) { $('lvJump').focus(); return; }
+      A.play('click'); startLevel(n);
+    };
+    $('lvJump').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.stopPropagation(); $('btnLvJump').click(); }
+    });
     $('btnUpBack').onclick = function () { A.play('click'); show('screenMenu'); };
 
-    // —— 第二季强化返回 → 合集首页（不是弹珠子菜单）——
-    $('btnS2Mute').onclick = function () {
+    // 无尽冲刺强化
+    $('btnRunnerMute').onclick = function () {
       var m = B.Music.toggleMute();
-      $('btnS2Mute').textContent = m ? '🔇 音乐：关' : '🔊 音乐：开';
+      $('btnRunnerMute').textContent = m ? '🔇 音乐：关' : '🔊 音乐：开';
     };
-    $('btnS2Back').onclick = function () { B.Music.stop(); A.play('click'); show('screenHub'); };
+    $('btnRunnerBack').onclick = function () { B.Music.stop(); A.play('click'); show('screenHub'); };
     $('btnHowBack').onclick = function () { A.play('click'); show(howReturn); };
 
-    // —— 对局内返回：按当前玩法分流（弹珠回子菜单，无尽冲刺回合集首页）——
-    $('btnBack').onclick = function () {
-      A.play('click');
-      if (B.Game.g.mode === 's2') show('screenHub');
-      else show('screenMenu');
-    };
+    // 对局内：一键回大厅 + 弹珠自己的菜单
+    $('btnBack').onclick = function () { A.play('click'); show('screenHub'); };
+    $('btnMenu').onclick = function () { A.play('click'); show('screenMenu'); };
     $('btnRestart').onclick = function () { Game.restart(); syncHud(true); };
     $('btnUndo').onclick = function () { if (Game.undo()) syncHud(true); };
     $('btnNext').onclick = function () { next(); };
-    $('btnSound').onclick = function () {
-      var on = A.toggle(); $('btnSound').textContent = on ? '♪' : '✕'; Meta.setSound(on);
-    };
+    $('btnSound').onclick = function () { A.unlock(); toggleSound(); };
 
     $('btnAgain').onclick = function () { A.play('click'); Game.restart(); inGame(); syncHud(true); };
     $('btnNext2').onclick = function () { A.play('click'); next(); };
     $('btnHome').onclick = function () { A.play('click'); show('screenLevels'); };
+    $('btnResultHub').onclick = function () { A.play('click'); show('screenHub'); };
 
-    // 触屏方向键（手机网页版没有方向键，用屏幕按钮，和键盘同一套 nudge/fire）
+    // 触屏方向键（与键盘同一套 nudge/fire）
     function pad(id, fn) {
       var el = $(id);
       if (el) el.onclick = function () { A.unlock(); A.play('click'); fn(); syncHud(true); };
@@ -335,35 +403,36 @@ B.UI = (function () {
 
   function next() {
     var n = Game.g.n + 1;
-    if (n > 200) { show('screenHub'); return; }   // 弹珠 1–200 关，打完后回合集首页
+    if (n > 200) { show('screenHub'); return; }
     startLevel(n);
   }
 
-  // ---------- 键盘 ----------
+  // ---------- 键盘：Esc 一律回大厅，随时能停 ----------
   function key(e) {
     var k = e.key.toLowerCase();
-    // 第二季（无尽躲避）：方向键左右移动，空格在死亡后重来，Esc 退回选关
-    if (Game.g.mode === 's2') {
-      if (k === 'arrowleft') { B.S2.setDir(-1); e.preventDefault(); }
-      else if (k === 'arrowright') { B.S2.setDir(1); e.preventDefault(); }
+    if (Game.g.mode === 'runner') {
+      if (k === 'arrowleft') { B.Runner.setDir(-1); e.preventDefault(); }
+      else if (k === 'arrowright') { B.Runner.setDir(1); e.preventDefault(); }
       else if (k === ' ' || k === 'enter') {
-        if (B.S2.state() && B.S2.state().dead) B.S2.restart();
+        if (B.Runner.state() && B.Runner.state().dead) B.Runner.restart();
         e.preventDefault();
       }
       else if (k === 'escape') { show('screenHub'); }
       return;
     }
     if (cur === 'screenHow' && (k === 'escape' || k === 'enter')) { $('btnHowBack').click(); return; }
-    if (cur === 'screenMenu' || cur === 'screenLevels' || cur === 'screenUpgrades') {
-      if (k === 'escape') { show('screenMenu'); }
-      return;
-    }
     if (cur === 'screenResult') {
       if (k === 'n' || k === 'enter') next();
       else if (k === 'r') { Game.restart(); inGame(); syncHud(true); }
-      else if (k === 'escape') show('screenLevels');
+      else if (k === 'escape') show('screenHub');
       return;
     }
+    if (cur === 'screenLevels' || cur === 'screenUpgrades' || cur === 'screenRunnerShop' || cur === 'screenMenu') {
+      if (k === 'escape') show(cur === 'screenMenu' ? 'screenHub' : (cur === 'screenRunnerShop' ? 'screenHub' : 'screenMenu'));
+      return;
+    }
+    // 输入框里别抢按键
+    if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
     // 对局中
     if (k === 'arrowleft') { Game.nudgeAngle(-B.C.ROT_STEP); e.preventDefault(); }
     else if (k === 'arrowright') { Game.nudgeAngle(B.C.ROT_STEP); e.preventDefault(); }
@@ -373,7 +442,7 @@ B.UI = (function () {
     else if (k === 'r') { Game.restart(); syncHud(true); }
     else if (k === 'z') { if (Game.undo()) syncHud(true); }
     else if (k === 'n' && Game.g.state === 'over') next();
-    else if (k === 'escape') show('screenLevels');
+    else if (k === 'escape') show('screenHub');
   }
 
   function boot() {
@@ -381,10 +450,13 @@ B.UI = (function () {
     bind();
     var S = Meta.data();
     $('btnSound').textContent = S.sound ? '♪' : '✕';
+    $('btnHubSound').textContent = S.sound ? '♪' : '✕';
     if (!S.sound) A.toggle();
-    // 进游戏就停在 BOUNCE 合集主页；「玩法介绍」不再自动弹，改为主页上的按钮
     show('screenHub');
   }
 
-  return { show: show, inGame: inGame, boot: boot, syncHud: syncHud, syncMenu: syncMenu, key: key, showResult: showResult, startLevel: startLevel, next: next };
+  return {
+    show: show, inGame: inGame, boot: boot, syncHud: syncHud, syncMenu: syncMenu,
+    key: key, showResult: showResult, startLevel: startLevel, startRunner: startRunner, next: next
+  };
 })();

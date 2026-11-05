@@ -22,9 +22,9 @@ var B = window.B = window.B || {};
     canvas.addEventListener('pointerdown', function (e) {
       B.A.unlock();
       var w = toW(e);
-      if (B.Game.g.mode === 's2') {
-        if (B.S2.state() && B.S2.state().dead) B.S2.restart();  // 死亡后点击=重来（与屏幕提示一致）
-        else B.S2.setTarget(w.x);
+      if (B.Game.g.mode === 'runner') {
+        if (B.Runner.state() && B.Runner.state().dead) B.Runner.restart();  // 死亡后点击=重来（与屏幕提示一致）
+        else B.Runner.setTarget(w.x);
         dragging = true;
         try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
         e.preventDefault();
@@ -39,8 +39,8 @@ var B = window.B = window.B || {};
 
     canvas.addEventListener('pointermove', function (e) {
       var w = toW(e);
-      if (B.Game.g.mode === 's2') {
-        if (dragging) { B.S2.setTarget(w.x); e.preventDefault(); }
+      if (B.Game.g.mode === 'runner') {
+        if (dragging) { B.Runner.setTarget(w.x); e.preventDefault(); }
         return;
       }
       B.Game.g.mx = w.x; B.Game.g.my = w.y;
@@ -51,13 +51,13 @@ var B = window.B = window.B || {};
       if (!dragging) return;
       dragging = false;
       try { canvas.releasePointerCapture(e.pointerId); } catch (err) { }
-      if (B.Game.g.mode === 's2') return;   // 第二季是拖动即移动，没有"松手发射"
+      if (B.Game.g.mode === 'runner') return;   // 无尽冲刺是拖动即移动，没有"松手发射"
       B.Game.aimEnd();
       B.UI.syncHud(true);
     }
     canvas.addEventListener('pointerup', up);
-    canvas.addEventListener('pointercancel', function () { dragging = false; if (B.Game.g.mode !== 's2') B.Game.aimCancel(); });
-    window.addEventListener('blur', function () { dragging = false; if (B.Game.g.mode !== 's2') B.Game.aimCancel(); });
+    canvas.addEventListener('pointercancel', function () { dragging = false; if (B.Game.g.mode !== 'runner') B.Game.aimCancel(); });
+    window.addEventListener('blur', function () { dragging = false; if (B.Game.g.mode !== 'runner') B.Game.aimCancel(); });
 
     // 拦掉触控板/鼠标的双击选中和右键菜单，拖动手感才干净
     canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
@@ -67,11 +67,11 @@ var B = window.B = window.B || {};
       B.A.unlock();
       B.UI.key(e);
     });
-    // 第二季：方向键按住=持续移动，松开=停。需要 keyup 把方向归零。
+    // 无尽冲刺：方向键按住=持续移动，松开=停。需要 keyup 把方向归零。
     window.addEventListener('keyup', function (e) {
-      if (B.Game.g.mode !== 's2') return;
+      if (B.Game.g.mode !== 'runner') return;
       var k = (e.key || '').toLowerCase();
-      if (k === 'arrowleft' || k === 'arrowright') B.S2.setDir(0);
+      if (k === 'arrowleft' || k === 'arrowright') B.Runner.setDir(0);
     });
   }
 
@@ -82,10 +82,10 @@ var B = window.B = window.B || {};
     if (rawDt > 0.05) rawDt = 0.05;          // 切标签页回来别让球瞬移
     if (rawDt < 0) rawDt = 0;
 
-    // 第二季：完全不同的操作与物理（方向键 / 拖拽的无尽躲避），主循环走另一条链路
-    if (B.Game.g.mode === 's2') {
-      B.S2.update(rawDt);
-      B.Render.frameS2(B.S2, now / 1000);
+    // 无尽冲刺：完全不同的操作与物理（方向键 / 拖拽的无尽躲避），主循环走另一条链路
+    if (B.Game.g.mode === 'runner') {
+      B.Runner.update(rawDt);
+      B.Render.frameRunner(B.Runner, now / 1000);
       B.UI.syncHud(false);
       return;
     }
@@ -109,30 +109,32 @@ var B = window.B = window.B || {};
   function debugHooks() {
     try {
       var q = new URLSearchParams(location.search);
-      var _bn0 = q.get('beacon') ? q.get('beaconurl') : null;
-      if (_bn0) { try { new Image().src = _bn0 + '?d=' + encodeURIComponent('HOOK_RAN mode=' + (B.Game ? B.Game.g.mode : '?')); } catch (e) { } }
+      // 信标地址必须在任何用到它的分支之前声明。旧版把它写在函数末尾，
+      // 靠 var 提升变成 undefined，?selftest=1&beacon=1 的实时上报整段永远不触发（真 bug）。
+      var _bn = q.get('beacon') ? q.get('beaconurl') : null;
+      if (_bn) { try { new Image().src = _bn + '?d=' + encodeURIComponent('HOOK_RAN mode=' + (B.Game ? B.Game.g.mode : '?')); } catch (e) { } }
 
-      // 同步模拟第二季（无头模式下 setInterval/rAF 会被压制，无法靠定时器跑；这里直接在 debugHooks 里
+      // 同步模拟无尽冲刺（无头模式下 setInterval/rAF 会被压制，无法靠定时器跑；这里直接在 debugHooks 里
       // 同步跑 N 帧，完整复刻 frame() 的 update+render 链路，把结果写进 document.title 供 --dump-dom 抓取）。
-      // 仅 ?sims2=N 时启用，正常玩完全不受影响。
-      if (q.get('sims2')) {
+      // 仅 ?simrunner=N 时启用，正常玩完全不受影响。
+      if (q.get('simrunner')) {
         try {
-          B.Game.startSeason2();            // 进入第二季（s2 模式 + S2.init）
-          var frames = parseInt(q.get('sims2'), 10) || 600;
+          B.Game.startRunner();            // 进入无尽冲刺（runner 模式 + Runner.init）
+          var frames = parseInt(q.get('simrunner'), 10) || 600;
           var t = 0, renderErr = '';
           for (var fi = 0; fi < frames; fi++) {
-            try { B.S2.update(1 / 60); } catch (e) { renderErr = 'UPDERR ' + e.message; break; }
-            try { B.Render.frameS2(B.S2, t); } catch (e) { renderErr = 'RENDERERR ' + e.message; break; }
+            try { B.Runner.update(1 / 60); } catch (e) { renderErr = 'UPDERR ' + e.message; break; }
+            try { B.Render.frameRunner(B.Runner, t); } catch (e) { renderErr = 'RENDERERR ' + e.message; break; }
             t += 1 / 60;
-            if (B.S2.state() && B.S2.state().dead) break;
+            if (B.Runner.state() && B.Runner.state().dead) break;
           }
-          var s = B.S2.state() || {};
-          document.title = 'S2 mode=' + B.Game.g.mode + ' score=' + Math.floor(s.score || 0) +
+          var s = B.Runner.state() || {};
+          document.title = 'RUNNER mode=' + B.Game.g.mode + ' score=' + Math.floor(s.score || 0) +
             ' lives=' + (s.lives || 0) + ' coins=' + (s.coins || 0) + ' shield=' + (s.shield || 0) +
             ' dead=' + !!s.dead + ' reachBad=' + (s._reachBad || 0) + (renderErr ? ' ' + renderErr : '');
         } catch (e) { document.title = 'SIMERR ' + (e && e.message); }
       }
-      // 弹珠 100+ 关同步自检（无头校验用，与 sims2 同思路）：?marbletest=N 同步进第 N 关，
+      // 弹珠 100+ 关同步自检（无头校验用，与 simrunner 同思路）：?marbletest=N 同步进第 N 关，
       // 跑通"建关 + 几何对齐 + 首帧预测渲染"全链路，把 cols/rows/目标数写进 title 供 --dump-dom 抓取。
       // 正常玩完全不受影响。
       if (q.get('marbletest')) {
@@ -218,31 +220,31 @@ var B = window.B = window.B || {};
             (_updErr || _escaped || _b1 !== 1 || _b2 !== 2 || _s0.end !== 'life' ? ' FAIL' : ' ok=1');
         } catch (e) { document.title = 'BOXERR ' + (e && e.message); }
       }
-      // 深链某个界面（调试用，正常玩不会带这个参数）：?screen=screenS2Shop 之类
+      // 深链某个界面（调试用，正常玩不会带这个参数）：?screen=screenRunnerShop 之类
       var sk = q.get('screen');
       if (sk) { try { B.UI.show(sk); } catch (e) { } }
       // 自检模式：无头 Chrome 的虚拟时间下 rAF 可能不触发，用定时器驱动主循环
       if (q.get('selftest')) {
         setInterval(function () { frame(performance.now()); }, 16);
       }
-      // 第二季自检信标：把实时分数 / 命数 / 金币 / 死局次数打回服务端，便于无头验证（仅 ?selftest=1&beacon=1 时）
+      // 无尽冲刺自检信标：把实时分数 / 命数 / 金币 / 死局次数打回服务端，便于无头验证（仅 ?selftest=1&beacon=1 时）
       if (_bn && q.get('selftest')) {
         setInterval(function () {
           try {
             var gm = B.Game.g;
             var mode = gm ? (gm.mode || '?') : 'nog';
-            if (gm && gm.mode === 's2' && B.S2 && B.S2.state()) {
-              var s = B.S2.state();
-              report('S2 mode=' + mode + ' score=' + Math.floor(s.score) + ' lives=' + s.lives + ' coins=' + s.coins + ' shield=' + s.shield + ' dead=' + s.dead + ' reachBad=' + s._reachBad);
+            if (gm && gm.mode === 'runner' && B.Runner && B.Runner.state()) {
+              var s = B.Runner.state();
+              report('RUNNER mode=' + mode + ' score=' + Math.floor(s.score) + ' lives=' + s.lives + ' coins=' + s.coins + ' shield=' + s.shield + ' dead=' + s.dead + ' reachBad=' + s._reachBad);
             } else {
-              report('MODE mode=' + mode);   // 心跳：无论什么模式都回报一次，便于定位"没进第二季"还是"信标没通"
+              report('MODE mode=' + mode);   // 心跳：无论什么模式都回报一次，便于定位"没进无尽冲刺"还是"信标没通"
             }
           } catch (e) { report('ERR ' + (e && e.message)); }
         }, 500);
       }
       // 自检结果回传（仅 &beacon=1&beaconurl=... 时启用，正常玩不触发）：
       // 无头环境 --dump-dom 会因无限定时器抢不到时机，改用本地 HTTP 信标把结果打到服务端日志。
-      var _bn = q.get('beacon') ? q.get('beaconurl') : null;
+      // _bn 已在 debugHooks 开头声明，这里只定义 report。
       function report(t) {
         document.title = t;
         if (_bn) { try { new Image().src = _bn + '?d=' + encodeURIComponent(t); } catch (e) { } }
@@ -300,7 +302,7 @@ var B = window.B = window.B || {};
     // 注册 Service Worker：让游戏可"安装为独立 App"且离线可玩（仅 http/https 下生效，file:// 忽略）
     if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=26').catch(function () { });
+        navigator.serviceWorker.register('./sw.js?v=27').catch(function () { });
       });
     }
     requestAnimationFrame(loop);
