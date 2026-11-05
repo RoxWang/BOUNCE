@@ -1,9 +1,0 @@
-<!doctype html><html><head><meta charset="utf-8"><title>beacon_test</title></head>
-<body><h1>beacon</h1>
-<script>
-  var u = new URLSearchParams(location.search);
-  var bn = u.get('beaconurl');
-  if (bn) { new Image().src = bn + '?d=PING_FROM_PAGE'; }
-  document.title = 'sent';
-</script>
-</body></html>
