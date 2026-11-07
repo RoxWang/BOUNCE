@@ -457,31 +457,21 @@ B.Game = (function () {
 
 // ============================================================================
 // 游戏注册表：大厅只认这张表，每个游戏都是一条完全独立的入口。
-// 加新游戏 = B.Games.add({ id, name, tag, icon, desc, category, progress, resume, enter, shop })
-// 大厅自动多一张卡、自动进分类、自动被搜索 —— 不用改任何界面代码。
+// 加新游戏 = B.Games.add({ id, name, icon, desc, category, resume, enter, shop })
+// 大厅自动多一张卡。desc 只写一句话：这游戏是干什么的，别加别的说明。
 // ============================================================================
 B.Games = (function () {
   var arr = [
     {
-      id: 'marble', name: '弹珠解谜', tag: '益智 · 200 关', category: '益智',
-      icon: '◉',
-      desc: '用有限的球清空场上所有金色目标砖。按住拖动瞄准，虚线就是球真实会走的路线。',
-      progress: function () {
-        var done = B.Meta.clearedCount();
-        return { text: '已通关 ' + done + ' / 200', pct: Math.min(100, done / 200 * 100) };
-      },
+      id: 'marble', name: '弹珠解谜', category: '益智', icon: '◉',
+      desc: '瞄准发射，用有限的球打碎所有金色砖。',
       resume: function () { B.UI.startLevel(B.Meta.data().cur || 1); },
       enter: function () { B.UI.show('screenMenu'); },
       shop: function () { B.UI.show('screenUpgrades'); }
     },
     {
-      id: 'runner', name: '无尽冲刺', tag: '动作 · 刷分', category: '动作',
-      icon: '⚡',
-      desc: '左右躲开不断落下的方块，活得越久分越高。沿路能捡护盾、缓速和金币。',
-      progress: function () {
-        var best = B.Runner.best();
-        return { text: best ? '最高分 ' + best : '还没开跑', pct: Math.min(100, (best || 0) / 30) };
-      },
+      id: 'runner', name: '无尽冲刺', category: '动作', icon: '⚡',
+      desc: '躲开下落的方块，活得越久分越高。',
       resume: function () { B.UI.startRunner(); },
       enter: function () { B.UI.startRunner(); },
       shop: function () { B.UI.show('screenRunnerShop'); }

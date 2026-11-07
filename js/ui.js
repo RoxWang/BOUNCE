@@ -52,7 +52,6 @@ B.UI = (function () {
   // ---------- 游戏大厅 ----------
   function syncHub() {
     $('hCoin').textContent = U.fmt(U.coins());
-    $('hDone').textContent = Meta.clearedCount();
 
     var last = B.Games.last();
     var cont = $('hubContinue');
@@ -63,6 +62,11 @@ B.UI = (function () {
     } else {
       cont.classList.add('hidden');
     }
+
+    // 只有几个游戏时，分类和搜索只是碍事的小字；游戏多了再自动出现。
+    var lean = B.Games.list().length <= 3;
+    $('hubToolbar').classList.toggle('hidden', lean);
+    if (lean) { hubFilter.cat = '全部'; hubFilter.q = ''; $('hubSearch').value = ''; }
 
     var cats = ['全部'].concat(B.Games.categories());
     var catWrap = $('hubCats');
@@ -79,25 +83,20 @@ B.UI = (function () {
     var items = B.Games.list().filter(function (g) {
       if (hubFilter.cat !== '全部' && (g.category || '其它') !== hubFilter.cat) return false;
       if (!q) return true;
-      return ((g.name || '') + ' ' + (g.tag || '') + ' ' + (g.desc || '')).toLowerCase().indexOf(q) >= 0;
+      return ((g.name || '') + ' ' + (g.desc || '')).toLowerCase().indexOf(q) >= 0;
     });
 
     var wrap = $('gameCards');
     wrap.innerHTML = '';
     items.forEach(function (g) {
-      var pr = g.progress ? g.progress() : null;
       var acts = '<button class="btn primary genter">开始</button>';
       if (g.shop) acts += '<button class="btn ghost small gshop">强化</button>';
       var card = document.createElement('article');
       card.className = 'gcard';
       card.innerHTML =
         '<div class="gico">' + (g.icon || '◉') + '</div>' +
-        '<div class="gbody">' +
-          '<div class="gtop"><b>' + g.name + '</b><span class="gtag">' + (g.tag || '') + '</span></div>' +
-          '<span class="gdesc">' + (g.desc || '') + '</span>' +
-          (pr ? '<div class="gprogress"><span>' + pr.text + '</span><i><em style="width:' +
-            Math.max(0, Math.min(100, pr.pct || 0)) + '%"></em></i></div>' : '') +
-        '</div>' +
+        '<div class="gbody"><b>' + g.name + '</b>' +
+        '<span class="gdesc">' + (g.desc || '') + '</span></div>' +
         '<div class="gacts">' + acts + '</div>';
       card.querySelector('.genter').onclick = function () { A.unlock(); A.play('click'); B.Games.enterGame(g.id); };
       if (g.shop) card.querySelector('.gshop').onclick = function () { A.unlock(); A.play('click'); g.shop(); };
