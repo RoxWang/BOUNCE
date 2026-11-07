@@ -9,11 +9,18 @@ B.Phys = (function () {
 
   var STEP = 2.0;        // 每个子步前进 2 像素（远小于球半径，绝不会穿过一格）
 
-  // 传送门"连续上限"规则（用户硬需求）：单个球一发之内连续碰传送门最多 2 次，
-  // 第 3 次直接当实心墙反弹；必须先撞到别的方块把 portalStreak 清零，才能再用门。
-  // 这比"固定冷却秒数"更贴合手感——靠"歇一下"而非"等时间"，也彻底杜绝长串门链死循环。
+  // 传送门规则（用户硬需求）：出一扇门之后不必非得撞方块，只要球碰到任何东西
+  //（撞墙反弹、钢块、普通砖、弹板、另一颗球、甚至穿过一个拾取物），门就重新可用。
+  // 只有"连续传送、中间什么都没碰到"才受限制：最多 2 次，同一条链里同一个门只进一次。
+  // 这样两扇门不再双双变成永久实心墙把球夹死；而连续的门链仍被封顶，不会死循环。
   // clock 仍保留给 game.js 调用（update 里 tick 推进实时），但不再驱动冷却。
   var clock = 0;
+
+  // 任何一次碰撞都清空"连续门链"：used 与 portalStreak 一起归零。
+  function clearPortalChain(s) {
+    s.used = {};
+    s.portalStreak = 0;
+  }
   function tick(dt) { clock += dt; }
 
   // 寿命阈值（随地图面积缩放：前期小图寿命短、后期大图寿命长，避免"小图球秒没 / 大图球永远撞不腻"）。
@@ -61,9 +68,9 @@ B.Phys = (function () {
       maxBounces: maxBounces,
       alive: true,
       noPortal: false,
-      portalUses: 0,   // 单发球用传送门次数，超过上限直接判落空（防卡死环）
-      portalStreak: 0, // 连续用门计数：连碰 2 次后第 3 次当实心墙，须先撞别的方块清零
-      used: {},        // 本发已经用过的门(c+','+r)：用过的门变实心，杜绝 A→B→B→A 死循环
+      portalUses: 0,   // 单发球累计传送次数（只用于护栏计数，不再判该发落空）
+      portalStreak: 0, // 连续传送计数：中间没有任何碰撞时连碰 2 次，第 3 次当实心墙
+      used: {},        // 仅"当前这条连续门链"里已进过的门(c+','+r)；任何碰撞一来就整体清空
       combo: 0,
       dmg: opt.dmg == null ? 1 : opt.dmg,
       boomR: opt.boomR == null ? 112 : opt.boomR,
@@ -169,8 +176,9 @@ B.Phys = (function () {
     var b = s.board, i = Bd.idx(b, c, r);
     var px = Bd.ccx(c), py = Bd.ccy(r);
 
-    // 撞到任何实体方块（传送门以外的）= 给传送门"歇一下"：连续用门计数清零
-    if (v.t !== 'portal') s.portalStreak = 0;
+    // 撞到任何实体格子（传送门以外）= 门链解锁。
+    // 这里管的是格子命中（包括打碎后直接穿过去的拾取物，那些不经过 bounce）；墙反弹在 bounce() 里解锁。
+    if (v.t !== 'portal') clearPortalChain(s);
 
     if (v.t === 'steel') { s.events.push({ t: 'wall', x: px, y: py }); return false; }
 
@@ -202,18 +210,12 @@ B.Phys = (function () {
     }
 
     if (v.t === 'portal') {
-      // 连续用门上限：同一发里已经连碰过 2 次传送门，第 3 次直接当实心墙反弹——
-      // 必须先撞到别的方块把计数清零，才能再用门。这比"固定冷却秒数"更贴合手感，也彻底杜绝长串门链死循环。
-      if (s.portalStreak >= 2) return false;
-      // 每个门在一发里只能用一次：再次进入就当实心墙反弹。这是根治"两门之间来回穿梭"死循环的关键。
-      // 旧版只靠 MAX_PORTAL 护栏，球还是会蹦几下才被强行结束（像卡死）；现在用过的门直接失效，绝不成环。
-      if (s.used[c + ',' + r]) return false;
+      // 只在"连续门链"里设限：中间只要撞过任何东西，clearPortalChain 已经把 used/streak 清空，
+      // 这扇门就能再进一次 —— 两门互夹时球靠反弹解锁、能真正脱离出去。
+      if (s.portalStreak >= 2) return false;                 // 第 3 次连续进门当实心墙
+      if (s.used[c + ',' + r]) return false;                 // 同一条链里同一扇门只进一次
       if (s.noPortal) return false;                          // 刚从某门出来，离开门前不再触发，防原地反复
-      if (s.portalUses >= C.MAX_PORTAL) {                    // 护栏：同一发用门太多次 = 卡死环，直接判该发落空
-        s.alive = false; s.end = 'portalloop';
-        s.events.push({ t: 'portal', x: s.x, y: s.y, voided: true });
-        return 'portalloop';
-      }
+      if (s.portalUses >= C.MAX_PORTAL) return false;         // 单发护栏：之后门当实心墙，球照常活着
       var list = allPortals(b);
       var ex = null;
       if (s.kind === 'live') {
@@ -222,6 +224,7 @@ B.Phys = (function () {
         var cand = [];
         for (var li = 0; li < list.length; li++) {
           var p = list[li];
+          // 候选出口排除"当前这条连续门链"里已经进过的门；链一断（撞到东西）就全放开。
           if (p.key !== (c + ',' + r) && !s.used[p.key]) cand.push(p);
         }
         if (!cand.length) return false;                     // 没别的门可去 → 实心墙
@@ -235,7 +238,7 @@ B.Phys = (function () {
         }
         if (!ex) return false;
       }
-      s.used[c + ',' + r] = true;                           // 标记本门已用（只标入口；出口下次作为入口再标）
+      s.used[c + ',' + r] = true;                           // 只标入口；下一次任何碰撞会整体清空
       // 瞬移到"出口门"的外沿，并把它自己的 dir 当成出口速度方向。
       // 关键：出来往哪走由门定义，不继承进来时的方向 → 不会再因为"方向被保留"而形成来回穿梭。
       var off = C.CELL / 2 + C.BALL_R + 1;
@@ -245,7 +248,7 @@ B.Phys = (function () {
       s.vy = ex.dir.y * C.SPEED;
       s.noPortal = true;
       s.portalUses++;
-      s.portalStreak++;                                    // 连续用门 +1；满 2 后下次当实心墙
+      s.portalStreak++;                                    // 连续用门 +1；满 2 后下次当实心墙，直到球碰到任何东西
       s.events.push({ t: 'portal', x: s.x, y: s.y, fromC: c, fromR: r, toC: ex.c, toR: ex.r, dir: ex.dir, live: s.kind === 'live' });
       return 'portal';
     }
@@ -353,7 +356,6 @@ B.Phys = (function () {
       s.y += n.y * (R - bestD + 0.05);
 
       var res = onHit(s, bestC, bestR, best);
-      if (res === 'portalloop') return 'portalloop';
       if (res === 'portal') { bounce(s, 'portal'); return null; }
 
       if (res !== true) {
@@ -376,6 +378,9 @@ B.Phys = (function () {
   }
 
   function bounce(s, kind) {
+    // 除了传送本身，任何一次反弹都算"球碰到了东西" → 连续门链解锁（撞墙也算，用户硬需求）。
+    // 被打回的门、钢块、普通砖、弹板、边框，全部走这里。
+    if (kind !== 'portal') clearPortalChain(s);
     s.bounces = (s.bounces || 0) + 1;   // 反弹次数 +1（寿命的"次数"维度就靠它）
     s.events.push({ t: 'bounce', x: s.x, y: s.y, kind: kind });
     s.segIdx.push(s.pts.length);
@@ -429,6 +434,8 @@ B.Phys = (function () {
     var dvx = B.vx - A.vx, dvy = B.vy - A.vy;
     var vn = dvx * nx + dvy * ny;        // <0 表示正在靠近
     if (vn < 0) {
+      // 球撞球也是"碰到东西"，两颗球各自的连续门链一起解锁
+      clearPortalChain(A); clearPortalChain(B);
       A.vx += vn * nx; A.vy += vn * ny;
       B.vx -= vn * nx; B.vy -= vn * ny;
       A.events.push({ t: 'bbhit', x: A.x + nx * R, y: A.y + ny * R });

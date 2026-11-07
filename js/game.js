@@ -11,7 +11,8 @@ B.Game = (function () {
     state: 'idle',        // idle 只有菜单；aim 可以瞄；fly 球在飞；over 已结束
     mode: 'marble',       // marble = 弹珠解谜；runner = 无尽冲刺（两个独立游戏，互不耦合）
     aiming: false, mx: 0, my: 0, aimAngle: -Math.PI / 2, power: 1,
-    marker: null,            // 发射标记：鼠标点哪就在哪放，球从这里进框（封闭框里出不来）
+    marker: null,            // 发射点：恒在边框上，球从框外沿玩家定的方向打进来
+    aimAnchor: null,         // 瞄准锚点：玩家按下的位置，只决定"球要穿过哪"，不是出生点
     preview: null,
     shots: [], evIdx: 0,
     combo: 0, bestCombo: 0,
@@ -64,7 +65,10 @@ B.Game = (function () {
     g.state = 'aim';
     g.aiming = false; g.preview = null;
     g.aimAngle = -Math.PI / 2; g.power = 1;   // 默认朝上、满力度；键盘/触屏从此处微调
-    g.marker = { x: g.board.launchX, y: C.BY + C.BH - C.BALL_R - 2 };   // 默认发射标记 = 框内底部中心（新机制：球从这里进框，四面实心墙封死，进得去出不来）
+    // 默认锚点 = 棋盘中心：朝上时反向射线打到"底边正中"，正好回到老版从底部打进来的手感；
+    // 转角度时入口会沿边框移动，四面都能进，但出生点永远在边框上。
+    g.aimAnchor = { x: g.board.launchX, y: C.BY + C.BH / 2 };
+    g.marker = spawnPoint();
     reshufflePortals(g.board, n);                  // 100+ 每发重新洗牌出口方向 = 动态感（预测线在门口截断，甩锅给运气）
     updatePreview();
     g.shots = []; g.evIdx = 0;
@@ -145,38 +149,85 @@ B.Game = (function () {
     return g;
   }
 
-  // 把点击坐标夹成合法发射点：夹进框内 + 若落在砖里则螺旋找最近空格中心
-  function clampMarker(wx, wy) {
+  // 发射点规则（用户硬需求）：球只能从边框打进来，不能从棋盘中间凭空出现。
+  // 玩家按下的点 = 瞄准锚点（球会从那条射线上经过），拖拽定方向；把射线往回延长到最近的一条边框，
+  // 交点就是球"从框外进来"的入口。四面墙依旧全封闭，进来之后随便反弹。
+  function clampAnchor(wx, wy) {
     var R = C.BALL_R;
-    var x = U.clamp(wx, C.BX + R, C.BX + C.BW - R);
-    var y = U.clamp(wy, C.BY + R, C.BY + C.BH - R);
-    var c = Bd.colAt(x), r = Bd.rowAt(y);
-    if (Bd.get(g.board, c, r)) {
-      for (var rad = 1; rad <= 4; rad++) {
-        for (var dr = -rad; dr <= rad; dr++) for (var dc = -rad; dc <= rad; dc++) {
-          if (Math.abs(dr) !== rad && Math.abs(dc) !== rad) continue;   // 只看外圈
-          var nc = c + dc, nr = r + dr;
-          if (Bd.inB(g.board, nc, nr) && !Bd.get(g.board, nc, nr)) return { x: Bd.ccx(nc), y: Bd.ccy(nr) };
-        }
+    return {
+      x: U.clamp(wx, C.BX + R, C.BX + C.BW - R),
+      y: U.clamp(wy, C.BY + R, C.BY + C.BH - R)
+    };
+  }
+
+  // 入口那一格要是有砖，球一出生就会卡在砖与墙之间来回弹到寿命耗尽。
+  // 所以沿这条边挪到最近的空格中心：出生点仍贴着边框，且预测线与真实球用的是同一个点。
+  function freeEdgeCell(side, along) {
+    var b = g.board;
+    var vertical = (side === 'left' || side === 'right');
+    var col = side === 'right' ? b.cols - 1 : 0;
+    var row = side === 'bottom' ? b.rows - 1 : 0;
+    var n = vertical ? b.rows : b.cols;
+    var k0 = U.clamp(vertical ? Bd.rowAt(along) : Bd.colAt(along), 0, n - 1);
+    for (var d = 0; d < n; d++) {
+      var cand = d === 0 ? [k0] : [k0 - d, k0 + d];
+      for (var j = 0; j < cand.length; j++) {
+        var k = cand[j];
+        if (k < 0 || k >= n) continue;
+        var c = vertical ? col : k, r = vertical ? k : row;
+        if (!Bd.get(b, c, r)) return { c: c, r: r };
       }
     }
-    return { x: x, y: y };
+    return null;
+  }
+
+  function borderSpawn(anchor, angle) {
+    var R = C.BALL_R;
+    var L = C.BX + R, RR = C.BX + C.BW - R, T = C.BY + R, Bo = C.BY + C.BH - R;
+    var dx = Math.cos(angle), dy = Math.sin(angle);
+    var best = null;
+    function consider(t, side, x, y) {
+      if (!(t > 0)) return;
+      if (!best || t < best.t) best = { t: t, side: side, x: x, y: y };
+    }
+    if (dx > 1e-9) consider((anchor.x - L) / dx, 'left', L, anchor.y - ((anchor.x - L) / dx) * dy);
+    if (dx < -1e-9) consider((anchor.x - RR) / dx, 'right', RR, anchor.y - ((anchor.x - RR) / dx) * dy);
+    if (dy > 1e-9) consider((anchor.y - T) / dy, 'top', anchor.x - ((anchor.y - T) / dy) * dx, T);
+    if (dy < -1e-9) consider((anchor.y - Bo) / dy, 'bottom', anchor.x - ((anchor.y - Bo) / dy) * dx, Bo);
+    if (!best) return { x: U.clamp(anchor.x, L, RR), y: Bo };
+    var x = best.x, y = best.y;
+    var cell = freeEdgeCell(best.side, (best.side === 'left' || best.side === 'right') ? y : x);
+    if (cell) {
+      if (best.side === 'left' || best.side === 'right') y = Bd.ccy(cell.r);
+      else x = Bd.ccx(cell.c);
+    }
+    return { x: U.clamp(x, L, RR), y: U.clamp(y, T, Bo) };
+  }
+
+  // 预览和真实发射都从这里取出生点，绝不各算各的（预测虚线 = 真实弹道）。
+  function spawnPoint() {
+    var a = g.aimAnchor || { x: g.board.launchX, y: C.BY + C.BH / 2 };
+    return borderSpawn(a, g.aimAngle);
   }
 
   // ---------- 瞄准 ----------
-  // 新机制：点击 = 放置发射标记（球从这里进框），方向 = 标记指向光标，松手发射（台球式任意方向）。
-  // 连发：飞行途中再点一下 = 在新位置放第二个标记、射第二颗。
+  // 按下 = 记一个"球要穿过的锚点"，拖拽 = 定方向，球永远从边框沿这个方向打进来。
+  // 连发：飞行途中再按一下 = 换锚点、再射一颗。
   function aimStart(wx, wy) {
     if (g.state !== 'aim' && g.state !== 'fly') return;   // 飞行途中也允许瞄准下一颗（连发）
     g.aiming = true; g.mx = wx; g.my = wy;
-    g.marker = clampMarker(wx, wy);
-    g.aimAngle = U.normAngle(Math.atan2(wy - g.marker.y, wx - g.marker.x));
+    g.aimAnchor = clampAnchor(wx, wy);
+    // 按下那一刻还没有方向，沿用上一次角度；纯点击不会莫名其妙横着打出去
+    g.marker = spawnPoint();
     updatePreview();
   }
   function aimMove(wx, wy) {
     if (!g.aiming || (g.state !== 'aim' && g.state !== 'fly')) return;
     g.mx = wx; g.my = wy;
-    g.aimAngle = U.normAngle(Math.atan2(wy - g.marker.y, wx - g.marker.x));
+    var a = g.aimAnchor;
+    var dx = wx - a.x, dy = wy - a.y;
+    if (dx * dx + dy * dy > 4) g.aimAngle = U.normAngle(Math.atan2(dy, dx));
+    g.marker = spawnPoint();
     updatePreview();
   }
   function aimEnd() {
@@ -188,11 +239,17 @@ B.Game = (function () {
   }
   function aimCancel() { g.aiming = false; g.preview = null; }
 
+  // 直接给角度（键盘、自动游玩机器人用）：角度一变，入口就沿边框跟着变。
+  function aimSet(angle) {
+    g.aimAngle = U.normAngle(angle);
+    g.marker = spawnPoint();
+    updatePreview();
+  }
+
   // 键盘 / 触屏：直接调角度与力度，鼠标拖也是往这俩变量里灌
   function nudgeAngle(d) {
     if (g.state !== 'aim') return;
-    g.aimAngle = U.normAngle(g.aimAngle + d);
-    updatePreview();
+    aimSet(g.aimAngle + d);
   }
   function nudgePower(d) {
     if (g.state !== 'aim') return;
@@ -209,7 +266,9 @@ B.Game = (function () {
     var st = Meta.stats();
     // preview:true → 预测线在传送门处截断（门后面全是随机出口，画了也是骗人，只画到"进哪扇门"）
     // previewSteps 把虚线长度截短到一屏好看；真实球按自己的寿命(full lifeSteps)跑，虚线是它的前缀 → 预测=真实不破
-    var opt = { power: g.power, dmg: st.dmg, boomR: st.boomR, boomDmg: st.boomDmg, chain: st.chain, preview: true, previewSteps: 900, spawn: g.marker };
+    var spawn = spawnPoint();
+    g.marker = spawn;
+    var opt = { power: g.power, dmg: st.dmg, boomR: st.boomR, boomDmg: st.boomDmg, chain: st.chain, preview: true, previewSteps: 900, spawn: spawn };
     if (g.shots.length === 0) {
       g.preview = P.run(g.board, g.aimAngle, opt);
     } else {
@@ -227,11 +286,13 @@ B.Game = (function () {
     g.balls--;
     g.shotsUsed++;
     g.lastBall = g.balls === 0;   // 这是最后一颗：这发清完就是绝杀
-    // 每发是一颗独立的球，可连续发射；出生点 = 当前发射标记（鼠标点哪放哪），四面墙封死所以进得去出不来。
+    // 每发是一颗独立的球，可连续发射；出生点永远在边框上，且与预测虚线取的是同一个 spawnPoint()。
     // 飞行途中棋盘冻结（动块两波之间才挪），所以预测=真实不被破坏。
+    var spawn = spawnPoint();
+    g.aimAngle = angle; g.marker = spawn;
     var s = P.shot(g.board, angle, {
       mutate: true, power: g.power, dmg: st.dmg, boomR: st.boomR, boomDmg: st.boomDmg, chain: st.chain,
-      spawn: g.marker || { x: g.board.launchX, y: C.BY + C.BH - C.BALL_R - 2 }
+      spawn: spawn
     });
     g.shots.push({ s: s, ball: { x: s.x, y: s.y }, trail: [], evIdx: 0 });
     g.preview = null; g.aiming = false;
@@ -375,9 +436,11 @@ B.Game = (function () {
     g.bestCombo = 0;
     g.combo = 0;
     g.aiming = false; g.preview = null;
-    g.marker = { x: g.board.launchX, y: C.BY + C.BH - C.BALL_R - 2 };   // 回到瞄准态：发射标记复位到框内底部中心（下一次点击会重新放）
     stepMovers();
     reshufflePortals(g.board, g.n);
+    // 动块挪过之后重新算入口（边框空格可能变了），别让出生点落在刚挪来的砖上
+    g.aimAnchor = { x: g.board.launchX, y: C.BY + C.BH / 2 };
+    g.marker = spawnPoint();
     g.state = 'aim';
     A.play('back');
   }
@@ -447,7 +510,7 @@ B.Game = (function () {
 
   return {
     g: g, load: load, getLevel: getLevel, startRunner: startRunner,
-    aimStart: aimStart, aimMove: aimMove, aimEnd: aimEnd, aimCancel: aimCancel,
+    aimStart: aimStart, aimMove: aimMove, aimEnd: aimEnd, aimCancel: aimCancel, aimSet: aimSet,
     nudgeAngle: nudgeAngle, nudgePower: nudgePower, fire: fire,
     update: update, undo: undo, restart: restart,
     targetsLeft: targetsLeft, countTargetsOfLevel: countTargetsOfLevel,

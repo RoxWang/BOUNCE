@@ -519,7 +519,7 @@ B.Render = (function () {
   }
 
   // ---------------- 发射标记 ----------------
-  // 新机制：球从"发射标记"进框（四面实心墙封死，进得去出不来）。标记 = 鼠标点哪放哪，带十字准星 + 呼吸光环。
+  // 标记恒在边框上：球从框外沿玩家定的方向打进来（四面实心墙封死，进得去出不来）。带十字准星 + 呼吸光环。
   function launcher(g, t) {
     var m = g.marker || { x: g.board.launchX, y: C.BY + C.BH - C.BALL_R - 2 };
     var x = m.x, y = m.y;
@@ -565,7 +565,7 @@ B.Render = (function () {
     ctx.restore();
   }
 
-  // 瞄准中的那条短线（沿当前 aimAngle，从发射标记指向光标——台球式任意方向）
+  // 瞄准中的那条短线（沿当前 aimAngle，从边框入口指向框内）
   function aim(g) {
     if (g.state !== 'aim' && g.state !== 'fly') return;   // 飞行途中瞄准下一颗也画瞄准线
     var m = g.marker || { x: g.board.launchX, y: C.BY + C.BH - C.BALL_R - 2 };

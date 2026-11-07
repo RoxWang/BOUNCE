@@ -161,9 +161,11 @@ var B = window.B = window.B || {};
           B.Game.load(5);
           var g = B.Game.g, b = g.board;
           g.state = 'aim'; g.aiming = true; g.balls = 9;          // 给足余弹
-          g.aimAngle = -Math.PI / 2;                               // 竖直向上
+          g.aimAnchor = { x: B.C.BX + B.C.BW / 2, y: B.C.BY + B.C.BH / 2 };
+          B.Game.aimSet(-Math.PI / 2);                              // 竖直向上，入口在底边
           B.Game.fire();                                           // 第一颗
           var mbS1 = g.shots.length, mbSt1 = g.state;
+          g.aimAnchor = { x: B.C.BX + B.C.BW / 2 - 70, y: B.C.BY + B.C.BH / 2 };  // 第二颗换个入口
           B.Game.fire();                                           // 连发：第一颗还在飞，直接射第二颗
           var mbS2 = g.shots.length, mbSt2 = g.state;
           var mbCrash = '';
@@ -195,10 +197,10 @@ var B = window.B = window.B || {};
           var g = B.Game.g, b = g.board, C = B.C;
           // 连发两颗：第一颗在底部中心，第二颗在框内偏左（飞行途中连发）
           g.state = 'aim'; g.aiming = true; g.balls = 9;
-          g.marker = { x: C.BX + C.BW / 2, y: C.BY + C.BH - C.BALL_R - 2 };
+          g.aimAnchor = { x: C.BX + C.BW / 2, y: C.BY + C.BH / 2 };
           g.aimAngle = -Math.PI / 2; B.Game.fire();
           var _b1 = g.shots.length;
-          g.marker = { x: C.BX + C.BW / 2 - 70, y: C.BY + C.BH * 0.62 };
+          g.aimAnchor = { x: C.BX + C.BW / 2 - 70, y: C.BY + C.BH * 0.62 };
           g.aimAngle = -Math.PI / 2; B.Game.fire();
           var _b2 = g.shots.length;
           var _updErr = '', _escaped = false;
@@ -211,7 +213,7 @@ var B = window.B = window.B || {};
           B.Game.load(10);
           var _g2 = B.Game.g;
           _g2.state = 'aim'; _g2.aiming = true; _g2.balls = 9;
-          _g2.marker = { x: C.BX + C.BW / 2, y: C.BY + C.BH - C.BALL_R - 2 };
+          _g2.aimAnchor = { x: C.BX + C.BW / 2, y: C.BY + C.BH / 2 };
           _g2.aimAngle = -Math.PI / 2; B.Game.fire();
           var _s0 = _g2.shots[0].s;
           for (var _li = 0; _li < 4000 && _s0.alive; _li++) B.Phys.step(_s0);
@@ -271,9 +273,11 @@ var B = window.B = window.B || {};
             if (sc > bestScore) { bestScore = sc; bestA = a; }
           }
           botShots++;
-          g.mx = g.board.launchX + Math.cos(bestA) * 300;
-          g.my = B.C.LAUNCH_Y + Math.sin(bestA) * 300;
-          B.Game.aimStart(g.mx, g.my); B.Game.aimEnd();
+          // 机器人的角度是求解器按"底边正中出生"算出来的；把锚点放在那条射线上，
+          // 反推出来的边框入口才会跟求解器一致，否则选出的角度打出来是另一条线。
+          var sp = { x: g.board.launchX, y: B.C.BY + B.C.BH - B.C.BALL_R - 2 };
+          g.aimAnchor = { x: sp.x + Math.cos(bestA) * 180, y: sp.y + Math.sin(bestA) * 180 };
+          B.Game.aimSet(bestA); B.Game.fire();
         }, 300);
         var watch = setInterval(function () {
           var g = B.Game.g;
@@ -302,7 +306,7 @@ var B = window.B = window.B || {};
     // 注册 Service Worker：让游戏可"安装为独立 App"且离线可玩（仅 http/https 下生效，file:// 忽略）
     if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=29').catch(function () { });
+        navigator.serviceWorker.register('./sw.js?v=30').catch(function () { });
       });
     }
     requestAnimationFrame(loop);

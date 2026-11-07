@@ -268,7 +268,7 @@ B.UI = (function () {
         txt = '松手发射 · 虚线就是球会走的路';
         line.className = 'autoline';
       } else {
-        txt = '按住往任意方向拖 → 瞄准 → 松手';   // 四面都是墙，上下左右都能打
+        txt = '拖动定方向 · 球从边框打进来';   // 四面都是墙，上下左右都能进
         line.className = 'autoline';
       }
       line.textContent = txt;
