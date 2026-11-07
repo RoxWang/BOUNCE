@@ -302,7 +302,7 @@ var B = window.B = window.B || {};
     // 注册 Service Worker：让游戏可"安装为独立 App"且离线可玩（仅 http/https 下生效，file:// 忽略）
     if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=28').catch(function () { });
+        navigator.serviceWorker.register('./sw.js?v=29').catch(function () { });
       });
     }
     requestAnimationFrame(loop);

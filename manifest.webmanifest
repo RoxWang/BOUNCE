@@ -1,7 +1,7 @@
 {
   "name": "BOUNCE",
   "short_name": "BOUNCE",
-  "description": "打开浏览器就能玩的小游戏：弹珠解谜、无尽冲刺。",
+  "description": "弹珠解谜、无尽冲刺。",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
