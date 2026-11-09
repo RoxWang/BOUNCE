@@ -7,6 +7,9 @@ B.Render = (function () {
   var FONT = '"PingFang SC","Noto Sans SC","Microsoft YaHei",-apple-system,sans-serif';
 
   var cv = null, ctx = null, dpr = 1;
+  // 上下留给 DOM HUD 的空间。跳跃拾金没有底部按钮排，把下边距收窄，画面不会被一条空黑带压住。
+  var insT = 54, insB = 124;
+  function setInsets(top, bottom) { insT = top; insB = bottom; }
   var scale = 1, ox = 0, oy = 0, vw = 0, vh = 0;
 
   // 砖块血量 → 颜色（看颜色就知道还要打几下，不用读数字）
@@ -42,7 +45,7 @@ B.Render = (function () {
     cv.width = Math.round(vw * dpr); cv.height = Math.round(vh * dpr);
     // 预留顶栏(54)与底部 HUD 带(124：提示气泡 + 按钮)——棋盘只画在中间这条带里，
     // 这样无论关卡多大，棋盘都不会压到顶部状态栏 / 底部提示与按钮（彻底杜绝 UI 重叠）。
-    var TOP = 54, BOT = 124;
+    var TOP = insT, BOT = insB;
     var avail = Math.max(220, vh - TOP - BOT);
     scale = Math.min(vw / C.W, avail / C.H);
     ox = (vw - C.W * scale) / 2;
@@ -645,7 +648,9 @@ B.Render = (function () {
   }
 
   return {
-    init: init, resize: resize, frame: frame, frameRunner: frameRunner, toWorld: toWorld, view: view,
+    init: init, resize: resize, setInsets: setInsets, frame: frame, frameRunner: frameRunner,
+    // 同一个通用画布入口：只要模块有 draw(ctx, t) 就能挂进主循环（runner / hop 共用）
+    frameArcade: frameRunner, toWorld: toWorld, view: view,
     hpColor: hpColor, ctx: function () { return ctx; }
   };
 })();

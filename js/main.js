@@ -30,6 +30,16 @@ var B = window.B = window.B || {};
         e.preventDefault();
         return;
       }
+      if (B.Game.g.mode === 'hop') {
+        // 按住画布左 / 右半区 = 往那边持续跑，松手停；起跳交给空格或屏幕 ⤴ 按钮。
+        // 死亡画面点任意位置 = 重来。
+        if (B.Hop.state() && B.Hop.state().dead) B.Hop.restart();
+        else B.Hop.setDir(w.x < B.C.W / 2 ? -1 : 1);
+        dragging = true;
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
+        e.preventDefault();
+        return;
+      }
       if (B.Game.state() !== 'aim') return;
       dragging = true;
       B.Game.aimStart(w.x, w.y);
@@ -43,6 +53,10 @@ var B = window.B = window.B || {};
         if (dragging) { B.Runner.setTarget(w.x); e.preventDefault(); }
         return;
       }
+      if (B.Game.g.mode === 'hop') {
+        if (dragging) { B.Hop.setDir(w.x < B.C.W / 2 ? -1 : 1); e.preventDefault(); }
+        return;
+      }
       B.Game.g.mx = w.x; B.Game.g.my = w.y;
       if (dragging) { B.Game.aimMove(w.x, w.y); e.preventDefault(); }
     });
@@ -52,12 +66,21 @@ var B = window.B = window.B || {};
       dragging = false;
       try { canvas.releasePointerCapture(e.pointerId); } catch (err) { }
       if (B.Game.g.mode === 'runner') return;   // 无尽冲刺是拖动即移动，没有"松手发射"
+      if (B.Game.g.mode === 'hop') { B.Hop.setDir(0); return; }
       B.Game.aimEnd();
       B.UI.syncHud(true);
     }
     canvas.addEventListener('pointerup', up);
-    canvas.addEventListener('pointercancel', function () { dragging = false; if (B.Game.g.mode !== 'runner') B.Game.aimCancel(); });
-    window.addEventListener('blur', function () { dragging = false; if (B.Game.g.mode !== 'runner') B.Game.aimCancel(); });
+    canvas.addEventListener('pointercancel', function () {
+      dragging = false;
+      if (B.Game.g.mode === 'hop') { B.Hop.setDir(0); return; }
+      if (B.Game.g.mode !== 'runner') B.Game.aimCancel();
+    });
+    window.addEventListener('blur', function () {
+      dragging = false;
+      if (B.Game.g.mode === 'hop') { B.Hop.setDir(0); return; }
+      if (B.Game.g.mode !== 'runner') B.Game.aimCancel();
+    });
 
     // 拦掉触控板/鼠标的双击选中和右键菜单，拖动手感才干净
     canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
@@ -67,10 +90,17 @@ var B = window.B = window.B || {};
       B.A.unlock();
       B.UI.key(e);
     });
-    // 无尽冲刺：方向键按住=持续移动，松开=停。需要 keyup 把方向归零。
+    // 街机模式：方向键按住=持续移动，松开=停；跳跃松开=短跳（砍上升速度）。
     window.addEventListener('keyup', function (e) {
-      if (B.Game.g.mode !== 'runner') return;
       var k = (e.key || '').toLowerCase();
+      if (B.Game.g.mode === 'hop') {
+        var hs = B.Hop.state();
+        if (k === 'arrowleft' || k === 'a') { if (hs && hs.dir < 0) B.Hop.setDir(0); }
+        else if (k === 'arrowright' || k === 'd') { if (hs && hs.dir > 0) B.Hop.setDir(0); }
+        else if (k === ' ' || k === 'arrowup' || k === 'w') B.Hop.setJumpHeld(false);
+        return;
+      }
+      if (B.Game.g.mode !== 'runner') return;
       if (k === 'arrowleft' || k === 'arrowright') B.Runner.setDir(0);
     });
   }
@@ -86,6 +116,14 @@ var B = window.B = window.B || {};
     if (B.Game.g.mode === 'runner') {
       B.Runner.update(rawDt);
       B.Render.frameRunner(B.Runner, now / 1000);
+      B.UI.syncHud(false);
+      return;
+    }
+
+    // 跳跃拾金：横版跑跳，与弹珠 / 无尽冲刺并列第三条主循环链路
+    if (B.Game.g.mode === 'hop') {
+      B.Hop.update(rawDt);
+      B.Render.frameArcade(B.Hop, now / 1000);
       B.UI.syncHud(false);
       return;
     }
@@ -133,6 +171,29 @@ var B = window.B = window.B || {};
             ' lives=' + (s.lives || 0) + ' coins=' + (s.coins || 0) + ' shield=' + (s.shield || 0) +
             ' dead=' + !!s.dead + ' reachBad=' + (s._reachBad || 0) + (renderErr ? ' ' + renderErr : '');
         } catch (e) { document.title = 'SIMERR ' + (e && e.message); }
+      }
+      // 跳跃拾金同步自检：?simhop=N 直接驱动真实 update + render，周期性起跳模拟真人操作，
+      // 把分数 / 金币 / 命数 / 生成违规数写进 title 供 --dump-dom 抓取。正常玩不受影响。
+      if (q.get('simhop')) {
+        try {
+          B.UI.startHop();
+          B.Hop.reset(parseInt(q.get('simhopseed'), 10) || 20261109);
+          var hf = parseInt(q.get('simhop'), 10) || 600, herr = '';
+          B.Hop.setDir(1);
+          for (var hj = 0; hj < hf; hj++) {
+            try { B.Hop.update(1 / 60); } catch (e) { herr = 'UPDERR ' + e.message; break; }
+            try { B.Render.frameArcade(B.Hop, hj / 60); } catch (e) { herr = 'RENDERERR ' + e.message; break; }
+            if (B.Hop.state() && B.Hop.state().dead) break;
+            if (hj % 37 === 0) B.Hop.jump();
+          }
+          var hs2 = B.Hop.state() || {};
+          document.title = 'HOP mode=' + B.Game.g.mode + ' score=' + Math.floor(hs2.score || 0) +
+            ' coins=' + (hs2.coinsGot || 0) + ' lives=' + (hs2.lives || 0) +
+            ' picked=' + (hs2.picked || 0) + ' genBad=' + (hs2.genBad || 0) +
+            ' falls=' + (hs2.falls || 0) + ' dead=' + !!hs2.dead +
+            ' plats=' + (hs2.plats ? hs2.plats.length : 0) +
+            (herr ? ' ' + herr : ' ok=1');
+        } catch (e) { document.title = 'HOPERR ' + (e && e.message); }
       }
       // 弹珠 100+ 关同步自检（无头校验用，与 simrunner 同思路）：?marbletest=N 同步进第 N 关，
       // 跑通"建关 + 几何对齐 + 首帧预测渲染"全链路，把 cols/rows/目标数写进 title 供 --dump-dom 抓取。
@@ -306,7 +367,7 @@ var B = window.B = window.B || {};
     // 注册 Service Worker：让游戏可"安装为独立 App"且离线可玩（仅 http/https 下生效，file:// 忽略）
     if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=30').catch(function () { });
+        navigator.serviceWorker.register('./sw.js?v=31').catch(function () { });
       });
     }
     requestAnimationFrame(loop);

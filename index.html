@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="description" content="BOUNCE · 弹珠解谜、无尽冲刺。">
+<meta name="description" content="BOUNCE · 弹珠解谜、无尽冲刺、跳跃拾金。">
 <title>BOUNCE</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%233fd6ff'/%3E%3Cpath d='M4 26 L28 10' stroke='%23ffb02e' stroke-width='3' stroke-linecap='round' stroke-dasharray='4 3'/%3E%3C/svg%3E">
-<link rel="manifest" href="manifest.webmanifest?v=30">
+<link rel="manifest" href="manifest.webmanifest?v=31">
 <meta name="theme-color" content="#05060c">
 <link rel="apple-touch-icon" href="icon-512.png">
-<link rel="stylesheet" href="style.css?v=30">
+<link rel="stylesheet" href="style.css?v=31">
 </head>
 <body>
 <div id="app">
@@ -53,6 +53,15 @@
       <button id="padFire" class="pk fire">●</button>
       <button id="padPwrD" class="pk">▼</button>
       <button id="padRotR" class="pk">⟳</button>
+    </div>
+
+    <!-- 跳跃拾金的虚拟按键：只在 hop 模式显示，按住左右持续跑、点右下起跳 -->
+    <div id="hopPad" class="hop-pad hidden">
+      <div class="hop-lr">
+        <button id="hopLeft" class="hk">◀</button>
+        <button id="hopRight" class="hk">▶</button>
+      </div>
+      <button id="hopJump" class="hk jump">⤴</button>
     </div>
   </div>
 
@@ -156,6 +165,19 @@
     </div>
   </div>
 
+  <!-- Hop upgrades -->
+  <div id="screenHopShop" class="screen hidden">
+    <div class="li">
+      <div class="lhead">
+        <h2>跳跃拾金 · 强化</h2>
+        <span class="coin big">◈ <b id="hopWallet">0</b></span>
+      </div>
+      <p class="uphint">跑出来的金币买永久强化，阵亡保留，跨局生效。</p>
+      <div id="hopUpList" class="uplist"></div>
+      <button id="btnHopBack" class="btn ghost">返回大厅</button>
+    </div>
+  </div>
+
   <!-- Result -->
   <div id="screenResult" class="screen hidden">
     <div class="ri">
@@ -203,18 +225,19 @@
 </div>
 
 <!-- ?v= is the cache stamp: bump every v= by one each time code changes, so the browser re-downloads. -->
-<script src="js/util.js?v=30"></script>
-<script src="js/audio.js?v=30"></script>
-<script src="js/music.js?v=30"></script>
-<script src="js/board.js?v=30"></script>
-<script src="js/physics.js?v=30"></script>
-<script src="js/levelgen.js?v=30"></script>
-<script src="js/fx.js?v=30"></script>
-<script src="js/render.js?v=30"></script>
-<script src="js/meta.js?v=30"></script>
-<script src="js/game.js?v=30"></script>
-<script src="js/runner.js?v=30"></script>
-<script src="js/ui.js?v=30"></script>
-<script src="js/main.js?v=30"></script>
+<script src="js/util.js?v=31"></script>
+<script src="js/audio.js?v=31"></script>
+<script src="js/music.js?v=31"></script>
+<script src="js/board.js?v=31"></script>
+<script src="js/physics.js?v=31"></script>
+<script src="js/levelgen.js?v=31"></script>
+<script src="js/fx.js?v=31"></script>
+<script src="js/render.js?v=31"></script>
+<script src="js/meta.js?v=31"></script>
+<script src="js/game.js?v=31"></script>
+<script src="js/runner.js?v=31"></script>
+<script src="js/hop.js?v=31"></script>
+<script src="js/ui.js?v=31"></script>
+<script src="js/main.js?v=31"></script>
 </body>
 </html>

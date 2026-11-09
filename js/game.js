@@ -9,7 +9,7 @@ B.Game = (function () {
     balls: 0, totalBalls: 0,
     segs: 2,
     state: 'idle',        // idle 只有菜单；aim 可以瞄；fly 球在飞；over 已结束
-    mode: 'marble',       // marble = 弹珠解谜；runner = 无尽冲刺（两个独立游戏，互不耦合）
+    mode: 'marble',       // marble 弹珠解谜 / runner 无尽冲刺 / hop 跳跃拾金（三个独立游戏，互不耦合）
     aiming: false, mx: 0, my: 0, aimAngle: -Math.PI / 2, power: 1,
     marker: null,            // 发射点：恒在边框上，球从框外沿玩家定的方向打进来
     aimAnchor: null,         // 瞄准锚点：玩家按下的位置，只决定"球要穿过哪"，不是出生点
@@ -56,6 +56,7 @@ B.Game = (function () {
     // 缓存里的关卡可能来自旧版本，先 applyGeo 会造成墙与格子错位（真 bug）。
     var lv = g.level;
     B.Board.applyGeo(lv.cols || B.Gen.geoFor(n).cols, (lv.rows && lv.rows.length) || B.Gen.geoFor(n).rows);
+    if (B.Render && B.Render.setInsets) B.Render.setInsets(54, 124);  // 恢复弹珠的下边距
     if (B.Render) B.Render.resize();               // 重新算缩放，适配新尺寸
     g.board = Bd.fromLevel(lv);
     g.segs = st.segs;
@@ -146,6 +147,23 @@ B.Game = (function () {
       pb.classList.remove('hidden'); pb.classList.add('show');
       setTimeout(function () { pb.classList.remove('show'); setTimeout(function () { pb.classList.add('hidden'); }, 420); }, 2600);
     }
+    return g;
+  }
+
+  // 跳跃拾金入口：第三个独立游戏（横版平台跳跃）。
+  // 跟 startRunner 一样，进游戏前必须复位棋盘几何：刚从弹珠 16×16 大地图退回来时
+  // C.W/C.H 还撑着，不复位的话画布缩放会按大地图算、整个世界被挤偏。
+  function startHop() {
+    var geo = B.Gen.geoFor(1);
+    B.Board.applyGeo(geo.cols, geo.rows);  // 先把 16×16 大地图复位回来
+    // 横版跑跳要横屏视野。C.W/C.H 同时也是渲染器缩放和 clip 的依据，改这里就能整条链路一起换；
+    // 弹珠物理在 hop 模式不跑，改尺寸不会污染它；退出时 load(1) 里的 applyGeo 会自动恢复。
+    B.C.W = 1100; B.C.H = 620;
+    if (B.Render && B.Render.setInsets) B.Render.setInsets(54, 54);   // 底部只留虚拟按键和一句提示
+    if (B.Render) B.Render.resize();
+    g.mode = 'hop';
+    if (B.Music) B.Music.stop();          // 别把无尽冲刺的背景音乐带进新游戏
+    B.Hop.init();
     return g;
   }
 
@@ -494,6 +512,7 @@ B.Game = (function () {
 
   function restart() {
     if (g.mode === 'runner') { startRunner(); A.play('click'); return; }
+    if (g.mode === 'hop') { B.Hop.restart(); A.play('click'); return; }
     var n = g.n;
     load(n);
     A.play('click');
@@ -509,7 +528,7 @@ B.Game = (function () {
   }
 
   return {
-    g: g, load: load, getLevel: getLevel, startRunner: startRunner,
+    g: g, load: load, getLevel: getLevel, startRunner: startRunner, startHop: startHop,
     aimStart: aimStart, aimMove: aimMove, aimEnd: aimEnd, aimCancel: aimCancel, aimSet: aimSet,
     nudgeAngle: nudgeAngle, nudgePower: nudgePower, fire: fire,
     update: update, undo: undo, restart: restart,

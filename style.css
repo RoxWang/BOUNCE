@@ -284,9 +284,41 @@ kbd{
   background:linear-gradient(180deg,var(--cyan),#1fa8d8);border-color:transparent;
 }
 .pk.fire:active{background:linear-gradient(180deg,#5fe2ff,#2bb8e6)}
+/* ---------- 跳跃拾金：左右跑 + 起跳（只在粗指针设备出现，桌面用方向键 / 空格）---------- */
+#hud .hop-pad{
+  position:absolute;left:16px;right:16px;bottom:16px;
+  display:flex;align-items:flex-end;justify-content:space-between;
+  pointer-events:none;opacity:.72;transition:opacity .2s;
+}
+#hud .hop-pad:hover{opacity:1}
+.hop-pad .hop-lr{display:flex;gap:10px;pointer-events:none}
+.hk{
+  pointer-events:auto;cursor:pointer;font-family:var(--font);
+  width:62px;height:62px;display:flex;align-items:center;justify-content:center;
+  font-size:26px;font-weight:900;line-height:1;color:var(--t1);
+  background:rgba(12,14,23,.82);border:1px solid var(--line2);
+  border-radius:16px;backdrop-filter:blur(6px);
+  -webkit-tap-highlight-color:transparent;
+  touch-action:none;user-select:none;-webkit-user-select:none;
+  transition:transform .08s,background .12s;
+}
+.hk:active{background:rgba(63,214,255,.22);border-color:var(--cyan);transform:scale(.92)}
+.hk.jump{
+  width:76px;height:76px;font-size:32px;color:#04121a;
+  background:linear-gradient(180deg,var(--cyan),#1fa8d8);border-color:transparent;
+}
+/* 跳跃拾金：顶栏不重复显示合集金币（画布内已有本局金币），提示条下移到按键那一排 */
+#hud.hop-mode #hudCoin{display:none}
+#hud.hop-mode .autoline{bottom:26px;font-size:12.5px;padding:6px 14px}
+@media (max-width:640px){
+  #hud.hop-mode .autoline{bottom:104px}
+  .hk{width:54px;height:54px;font-size:22px}
+  .hk.jump{width:64px;height:64px;font-size:27px}
+}
 /* 触屏设备才显示整套方向键 */
 @media (hover:none) and (pointer:coarse){
   #hud .pad{display:grid;opacity:1}
+  #hud .hop-pad{display:flex}
 }
 
 /* ---------- 游戏大厅（门户）---------- */

@@ -5,22 +5,29 @@ var B = window.B = window.B || {};
 B.UI = (function () {
   var Meta = B.Meta, Game = B.Game, A = B.A, U = B.U, Gen = B.Gen;
   var $ = function (id) { return document.getElementById(id); };
-  var SCREENS = ['screenHub', 'screenMenu', 'screenLevels', 'screenUpgrades', 'screenRunnerShop', 'screenResult', 'screenHow'];
+  var SCREENS = ['screenHub', 'screenMenu', 'screenLevels', 'screenUpgrades', 'screenRunnerShop', 'screenHopShop', 'screenResult', 'screenHow'];
   var cur = 'screenHub';
   var howReturn = 'screenHub';       // 从哪个界面进的「玩法介绍」，关闭后就回哪
   var hubFilter = { cat: '全部', q: '' };
   var lvRange = 0;                   // 选关分段 0..3（1–50 / 51–100 / 101–150 / 151–200）
 
-  // 离开无尽冲刺：把主循环切回弹珠并停掉音乐，否则冲刺的循环会在大厅背后继续跑，
-  // 把死局画面卡在菜单后面。
-  function leaveRunner() {
-    if (Game.g.mode !== 'runner') return;
+  // 离开街机类游戏（无尽冲刺 / 跳跃拾金）：把主循环切回弹珠并停掉音乐，
+  // 否则它们的循环会在大厅背后继续跑、把死局画面卡在菜单后面。
+  // load(1) 内部会 applyGeo 复位 C.W/C.H（跳跃拾金把视口改成横屏过）并重算渲染缩放。
+  function leaveArcade() {
+    if (Game.g.mode !== 'runner' && Game.g.mode !== 'hop') return;
+    if (Game.g.mode === 'hop' && B.Hop && B.Hop.cashOut) B.Hop.cashOut();  // 退出前结算本局金币
     Game.g.mode = 'marble';
-    Game.load(1);                   // load 内部会 stop 音乐、复位几何
+    Game.load(1);
+    // 虚拟按键立刻切回弹珠那套，别等下一帧主循环 —— 否则退出大厅的瞬间还挂着跳跃键。
+    var mp = $('pad'), hp = $('hopPad'), he = $('hud');
+    if (mp) mp.classList.remove('hidden');
+    if (hp) hp.classList.add('hidden');
+    if (he) he.classList.remove('hop-mode');
   }
 
   function show(name) {
-    leaveRunner();
+    leaveArcade();
     for (var i = 0; i < SCREENS.length; i++) {
       var el = $(SCREENS[i]);
       if (el) el.classList.toggle('hidden', SCREENS[i] !== name);
@@ -31,6 +38,7 @@ B.UI = (function () {
     if (name === 'screenLevels') syncLevels();
     if (name === 'screenUpgrades') syncUpgrades();
     if (name === 'screenRunnerShop') syncRunnerShop();
+    if (name === 'screenHopShop') syncHopShop();
     if (name === 'screenHub') syncHub();
   }
 
@@ -46,6 +54,13 @@ B.UI = (function () {
   function startRunner() {
     inGame();
     Game.startRunner();
+    syncHud(true);
+  }
+
+  // 从大厅进跳跃拾金：同样必须先关掉大厅这层界面，否则游戏在背后跑。
+  function startHop() {
+    inGame();
+    Game.startHop();
     syncHud(true);
   }
 
@@ -202,6 +217,37 @@ B.UI = (function () {
     });
   }
 
+  // ---------- 跳跃拾金强化 ----------
+  function syncHopShop() {
+    var data = B.Hop.shopData();
+    $('hopWallet').textContent = U.fmt(data.wallet);
+    var list = $('hopUpList');
+    list.innerHTML = '';
+    data.defs.forEach(function (u) {
+      var lv = data.up[u.id] || 0;
+      var maxed = lv >= u.max;
+      var cost = B.Hop.costOf(u.id);
+      var row = document.createElement('div');
+      row.className = 'up' + (maxed ? ' max' : '');
+      var pips = '';
+      for (var i = 0; i < u.max; i++) pips += '<em class="' + (i < lv ? 'on' : '') + '"></em>';
+      row.innerHTML =
+        '<i>' + u.icon + '</i>' +
+        '<div class="info"><b>' + u.name + ' <span style="color:var(--t3);font-size:12px">Lv.' + lv + '/' + u.max + '</span></b>' +
+        '<span>' + u.desc + '</span><div class="pips">' + pips + '</div></div>';
+      var btn = document.createElement('button');
+      btn.className = 'buy' + (maxed ? ' done' : '');
+      if (maxed) { btn.textContent = 'MAX'; btn.disabled = true; }
+      else {
+        btn.textContent = '◈ ' + U.fmt(cost);
+        btn.disabled = data.wallet < cost;
+        btn.onclick = function () { if (B.Hop.buy(u.id)) { A.play('buy'); syncHopShop(); } };
+      }
+      row.appendChild(btn);
+      list.appendChild(row);
+    });
+  }
+
   // ---------- 进关 ----------
   function startLevel(n) {
     inGame();
@@ -219,6 +265,13 @@ B.UI = (function () {
   function syncHud(force) {
     var g = Game.g;
     $('hudCoin').textContent = '◈ ' + U.fmt(U.coins());
+    // 跳跃拾金用一套精简 HUD：顶栏不重复显示金币，底部提示下移到虚拟按键那一排。
+    var hudEl = $('hud');
+    if (hudEl) hudEl.classList.toggle('hop-mode', g.mode === 'hop');
+    // 虚拟按键按模式互斥：弹珠用 #pad，跳跃拾金用 #hopPad，无尽冲刺两者都不要。
+    var mp = $('pad'), hp = $('hopPad');
+    if (mp) mp.classList.toggle('hidden', g.mode !== 'marble');
+    if (hp) hp.classList.toggle('hidden', g.mode !== 'hop');
     if (g.mode === 'runner') {
       $('hudName').textContent = '无尽冲刺';
       $('hudGoal').textContent = '方向键 / 拖动 躲开下落方块';
@@ -231,6 +284,20 @@ B.UI = (function () {
       var al = $('hudAuto');
       al.textContent = '← → 或拖动屏幕 · 撞到就结束 · 空格 / 点击重来';
       al.style.opacity = 1; al.className = 'autoline';
+      return;
+    }
+    if (g.mode === 'hop') {
+      $('hudName').textContent = '跳跃拾金';
+      $('hudGoal').textContent = '';
+      var sbh = document.querySelector('.statusbar');
+      if (sbh) sbh.style.display = 'none';
+      $('btnMenu').classList.add('hidden');
+      $('btnUndo').classList.add('hidden');
+      $('btnNext').classList.add('hidden');
+      $('btnRestart').classList.add('hidden');
+      var alh = $('hudAuto');
+      alh.textContent = '← → 跑 · 空格 跳';
+      alh.style.opacity = 1; alh.className = 'autoline';
       return;
     }
     var sb2 = document.querySelector('.statusbar');
@@ -371,6 +438,27 @@ B.UI = (function () {
       $('btnRunnerMute').textContent = m ? '🔇 音乐：关' : '🔊 音乐：开';
     };
     $('btnRunnerBack').onclick = function () { B.Music.stop(); A.play('click'); show('screenHub'); };
+
+    // 跳跃拾金强化 + 虚拟按键（按住左右持续跑、跳跃按下起跳 / 松开收成小跳）
+    $('btnHopBack').onclick = function () { A.play('click'); show('screenHub'); };
+    function hopBtn(id, down, up) {
+      var el = $(id);
+      if (!el) return;
+      el.addEventListener('pointerdown', function (e) {
+        A.unlock();
+        try { el.setPointerCapture(e.pointerId); } catch (err) { }
+        down(); e.preventDefault();
+      });
+      el.addEventListener('pointerup', function (e) { if (up) up(); e.preventDefault(); });
+      el.addEventListener('pointercancel', function () { if (up) up(); });
+    }
+    hopBtn('hopLeft', function () { B.Hop.setDir(-1); }, function () { if (B.Hop.state() && B.Hop.state().dir < 0) B.Hop.setDir(0); });
+    hopBtn('hopRight', function () { B.Hop.setDir(1); }, function () { if (B.Hop.state() && B.Hop.state().dir > 0) B.Hop.setDir(0); });
+    hopBtn('hopJump', function () {
+      if (B.Hop.state() && B.Hop.state().dead) { B.Hop.restart(); return; }
+      B.Hop.setJumpHeld(true); B.Hop.jump();
+    }, function () { B.Hop.setJumpHeld(false); });
+
     $('btnHowBack').onclick = function () { A.play('click'); show(howReturn); };
 
     // 对局内：一键回大厅 + 弹珠自己的菜单
@@ -419,6 +507,19 @@ B.UI = (function () {
       else if (k === 'escape') { show('screenHub'); }
       return;
     }
+    if (Game.g.mode === 'hop') {
+      if (k === 'arrowleft' || k === 'a') { B.Hop.setDir(-1); e.preventDefault(); }
+      else if (k === 'arrowright' || k === 'd') { B.Hop.setDir(1); e.preventDefault(); }
+      else if (k === 'arrowup' || k === 'w' || k === ' ') {
+        var hk = B.Hop.state();
+        if (hk && hk.dead) B.Hop.restart();
+        else if (!e.repeat) { B.Hop.setJumpHeld(true); B.Hop.jump(); }
+        e.preventDefault();
+      }
+      else if (k === 'r') { B.Hop.restart(); }
+      else if (k === 'escape') { show('screenHub'); }
+      return;
+    }
     if (cur === 'screenHow' && (k === 'escape' || k === 'enter')) { $('btnHowBack').click(); return; }
     if (cur === 'screenResult') {
       if (k === 'n' || k === 'enter') next();
@@ -426,8 +527,8 @@ B.UI = (function () {
       else if (k === 'escape') show('screenHub');
       return;
     }
-    if (cur === 'screenLevels' || cur === 'screenUpgrades' || cur === 'screenRunnerShop' || cur === 'screenMenu') {
-      if (k === 'escape') show(cur === 'screenMenu' ? 'screenHub' : (cur === 'screenRunnerShop' ? 'screenHub' : 'screenMenu'));
+    if (cur === 'screenLevels' || cur === 'screenUpgrades' || cur === 'screenRunnerShop' || cur === 'screenHopShop' || cur === 'screenMenu') {
+      if (k === 'escape') show(cur === 'screenMenu' ? 'screenHub' : ((cur === 'screenRunnerShop' || cur === 'screenHopShop') ? 'screenHub' : 'screenMenu'));
       return;
     }
     // 输入框里别抢按键
@@ -456,6 +557,6 @@ B.UI = (function () {
 
   return {
     show: show, inGame: inGame, boot: boot, syncHud: syncHud, syncMenu: syncMenu,
-    key: key, showResult: showResult, startLevel: startLevel, startRunner: startRunner, next: next
+    key: key, showResult: showResult, startLevel: startLevel, startRunner: startRunner, startHop: startHop, next: next
   };
 })();
