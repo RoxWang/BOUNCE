@@ -94,6 +94,8 @@ B.UI = (function () {
   function resumeRail() { inGame(); syncHud(true); }
 
   // ---------- 游戏大厅 ----------
+  // 每张卡一个克制的识别色，只作用在图标、极细顶线和悬停描边；不新增任何文字。
+  var TONES = { marble: 'cyan', runner: 'amber', hop: 'green', rail: 'violet' };
   function syncHub() {
     $('hCoin').textContent = U.fmt(U.coins());
 
@@ -138,8 +140,9 @@ B.UI = (function () {
       if (g.shop) acts += '<button class="btn ghost small gshop">强化</button>';
       var card = document.createElement('article');
       card.className = 'gcard';
+      card.setAttribute('data-tone', TONES[g.id] || 'cyan');
       card.innerHTML =
-        '<div class="gico">' + (g.icon || '◉') + '</div>' +
+        '<div class="gart"><div class="gico">' + (g.icon || '◉') + '</div><div class="gring"></div></div>' +
         '<div class="gbody"><b>' + g.name + '</b>' +
         '<span class="gdesc">' + (g.desc || '') + '</span></div>' +
         '<div class="gacts">' + acts + '</div>';
