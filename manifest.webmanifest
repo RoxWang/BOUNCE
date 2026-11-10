@@ -1,7 +1,7 @@
 {
   "name": "BOUNCE",
   "short_name": "BOUNCE",
-  "description": "弹珠解谜、无尽冲刺、跳跃拾金。",
+  "description": "BOUNCE 小游戏合集。",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

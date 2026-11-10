@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="description" content="BOUNCE · 弹珠解谜、无尽冲刺、跳跃拾金。">
+<meta name="description" content="BOUNCE · 小游戏合集。">
 <title>BOUNCE</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%233fd6ff'/%3E%3Cpath d='M4 26 L28 10' stroke='%23ffb02e' stroke-width='3' stroke-linecap='round' stroke-dasharray='4 3'/%3E%3C/svg%3E">
-<link rel="manifest" href="manifest.webmanifest?v=32">
+<link rel="manifest" href="manifest.webmanifest?v=33">
 <meta name="theme-color" content="#05060c">
 <link rel="apple-touch-icon" href="icon-512.png">
-<link rel="stylesheet" href="style.css?v=32">
+<link rel="stylesheet" href="style.css?v=33">
 </head>
 <body>
 <div id="app">
@@ -27,6 +27,7 @@
       <button id="btnBack" class="chip">← 大厅</button>
       <button id="btnMenu" class="chip">菜单</button>
       <button id="btnHopLevels" class="chip hidden">选关</button>
+      <button id="btnRailHow" class="chip hidden">玩法</button>
       <div class="lvname"><b id="hudName">—</b><span id="hudGoal">—</span></div>
       <div class="topright">
         <span id="hudCoin" class="coin">◈ 0</span>
@@ -56,13 +57,23 @@
       <button id="padRotR" class="pk">⟳</button>
     </div>
 
-    <!-- 跳跃拾金的虚拟按键：只在 hop 模式显示，按住左右持续跑、点右下起跳 -->
+    <!-- 虚拟按键：桌面一律不显示，只有触屏设备才出现（MacBook 用方向键 / 拖动） -->
     <div id="hopPad" class="hop-pad hidden">
       <div class="hop-lr">
         <button id="hopLeft" class="hk">◀</button>
         <button id="hopRight" class="hk">▶</button>
       </div>
       <button id="hopJump" class="hk jump">⤴</button>
+    </div>
+    <div id="railPad" class="hop-pad hidden">
+      <div class="hop-lr">
+        <button id="railLeft" class="hk">◀</button>
+        <button id="railRight" class="hk">▶</button>
+      </div>
+      <div class="hop-lr">
+        <button id="railJump" class="hk">⤴</button>
+        <button id="railSlide" class="hk slide">⤓</button>
+      </div>
     </div>
   </div>
 
@@ -205,7 +216,7 @@
         <div class="step"><b>不能二段跳</b><span>只有站在地上（或刚离开平台一眨眼内）才能起跳。踩到怪物头顶会被弹起，这是唯一能在空中再升一次的方式，还给 3 金币。</span></div>
         <div class="step"><b>命</b><span>3 条命。碰尖刺、撞怪物侧面、掉出屏幕各扣 1 条，扣完就 GAME OVER，重来本关。扣命后短暂无敌，护盾能挡一次。</span></div>
         <div class="step"><b>三星</b><span>通关 1 星，本关金币吃到七成再 1 星，一条命没掉再 1 星。星级只记录，不锁关卡。</span></div>
-        <div class="step"><b>金币</b><span>本关金币进合集统一金库，三个游戏共用。通关额外按星级给奖励，去「强化」买永久升级。</span></div>
+        <div class="step"><b>金币</b><span>本关金币进合集统一金库，各游戏共用。通关额外按星级给奖励，去「强化」买永久升级。</span></div>
       </div>
       <button id="btnHopHowBack" class="btn primary">知道了</button>
     </div>
@@ -222,6 +233,49 @@
         <button id="btnHopNext" class="btn primary">下一关</button>
         <button id="btnHopResultLevels" class="btn ghost">选关</button>
         <button id="btnHopResultHub" class="btn ghost">回大厅</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rail upgrades -->
+  <div id="screenRailShop" class="screen hidden">
+    <div class="li">
+      <div class="lhead">
+        <h2>轨道狂奔 · 强化</h2>
+        <span class="coin big">◈ <b id="railWallet">0</b></span>
+      </div>
+      <p class="uphint">跑出来的金币买永久强化，阵亡保留，跨局生效。</p>
+      <div id="railUpList" class="uplist"></div>
+      <button id="btnRailBack" class="btn ghost">返回大厅</button>
+    </div>
+  </div>
+
+  <!-- Rail how to play -->
+  <div id="screenRailHow" class="screen hidden">
+    <div class="hi">
+      <h2>怎么玩</h2>
+      <div class="hl">
+        <div class="step"><b>目标</b><span>三条轨道一直往前跑，没有终点。跑得越远分越高，速度也会越来越快。</span></div>
+        <div class="step"><b>换道</b><span><kbd>←→</kbd> 或 <kbd>A D</kbd> 左右换一条道。触屏点屏幕方向键，或在画面上左右拖动。</span></div>
+        <div class="step"><b>跳</b><span><kbd>↑</kbd> / <kbd>W</kbd> / <kbd>空格</kbd> 跳过橙色低栏。在画面上往上拖也行。</span></div>
+        <div class="step"><b>下滑</b><span><kbd>↓</kbd> / <kbd>S</kbd> 从黄色横杆下面钻过去。在画面上往下拖也行。</span></div>
+        <div class="step"><b>红色车厢</b><span>跳和钻都没用，只能提前换道。每一排至少留一条空道，不会把你堵死。</span></div>
+        <div class="step"><b>3 条命</b><span>撞障碍扣 1 条命，扣完就结束；扣命后短暂无敌。护盾能挡一次。捡金币攒金库。</span></div>
+        <div class="step"><b>加 buff</b><span>绿色 ◎ 磁石自动吸金币、橙色 ×2 分数翻倍，都限时；蓝色 ⬡ 护盾能挡一次伤害，不过期。金币还能去「强化」买永久加成：多一条命、开局带护盾、磁石范围、得分加成。</span></div>
+      </div>
+      <button id="btnRailHowBack" class="btn primary">知道了</button>
+    </div>
+  </div>
+
+  <!-- Rail game over -->
+  <div id="screenRailResult" class="screen hidden">
+    <div class="ri">
+      <p id="railRTitle" class="rtitle lose">游戏结束</p>
+      <div id="railRStats" class="rstats"></div>
+      <div class="rbtns">
+        <button id="btnRailAgain" class="btn primary">再来一次</button>
+        <button id="btnRailShopResult" class="btn ghost">强化</button>
+        <button id="btnRailResultHub" class="btn ghost">回大厅</button>
       </div>
     </div>
   </div>
@@ -273,19 +327,20 @@
 </div>
 
 <!-- ?v= is the cache stamp: bump every v= by one each time code changes, so the browser re-downloads. -->
-<script src="js/util.js?v=32"></script>
-<script src="js/audio.js?v=32"></script>
-<script src="js/music.js?v=32"></script>
-<script src="js/board.js?v=32"></script>
-<script src="js/physics.js?v=32"></script>
-<script src="js/levelgen.js?v=32"></script>
-<script src="js/fx.js?v=32"></script>
-<script src="js/render.js?v=32"></script>
-<script src="js/meta.js?v=32"></script>
-<script src="js/game.js?v=32"></script>
-<script src="js/runner.js?v=32"></script>
-<script src="js/hop.js?v=32"></script>
-<script src="js/ui.js?v=32"></script>
-<script src="js/main.js?v=32"></script>
+<script src="js/util.js?v=33"></script>
+<script src="js/audio.js?v=33"></script>
+<script src="js/music.js?v=33"></script>
+<script src="js/board.js?v=33"></script>
+<script src="js/physics.js?v=33"></script>
+<script src="js/levelgen.js?v=33"></script>
+<script src="js/fx.js?v=33"></script>
+<script src="js/render.js?v=33"></script>
+<script src="js/meta.js?v=33"></script>
+<script src="js/game.js?v=33"></script>
+<script src="js/runner.js?v=33"></script>
+<script src="js/hop.js?v=33"></script>
+<script src="js/rail.js?v=33"></script>
+<script src="js/ui.js?v=33"></script>
+<script src="js/main.js?v=33"></script>
 </body>
 </html>

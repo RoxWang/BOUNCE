@@ -16,6 +16,7 @@ var B = window.B = window.B || {};
 
   function bindInput() {
     var dragging = false;
+    var swipe = null;          // 轨道狂奔：按下点 → 松手算方向（左右换道 / 上下跳铲）
 
     function toW(e) { return B.Render.toWorld(e.clientX, e.clientY); }
 
@@ -40,6 +41,16 @@ var B = window.B = window.B || {};
         e.preventDefault();
         return;
       }
+      if (B.Game.g.mode === 'rail') {
+        // 离散动作：松手时按拖动方向判定。不抢双指手势、不锁指针，Mac 触控板可用。
+        var rst0 = B.Rail.state();
+        if (rst0 && rst0.dead) return;
+        swipe = { x: e.clientX, y: e.clientY };
+        dragging = true;
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
+        e.preventDefault();
+        return;
+      }
       if (B.Game.state() !== 'aim') return;
       dragging = true;
       B.Game.aimStart(w.x, w.y);
@@ -57,6 +68,10 @@ var B = window.B = window.B || {};
         if (dragging) { B.Hop.setDir(w.x < B.C.W / 2 ? -1 : 1); e.preventDefault(); }
         return;
       }
+      if (B.Game.g.mode === 'rail') {
+        if (dragging) e.preventDefault();   // 动作在松手时判，拖动过程不做任何事
+        return;
+      }
       B.Game.g.mx = w.x; B.Game.g.my = w.y;
       if (dragging) { B.Game.aimMove(w.x, w.y); e.preventDefault(); }
     });
@@ -67,18 +82,35 @@ var B = window.B = window.B || {};
       try { canvas.releasePointerCapture(e.pointerId); } catch (err) { }
       if (B.Game.g.mode === 'runner') return;   // 无尽冲刺是拖动即移动，没有"松手发射"
       if (B.Game.g.mode === 'hop') { B.Hop.setDir(0); return; }
+      if (B.Game.g.mode === 'rail') {
+        if (swipe && e && typeof e.clientX === 'number') {
+          var dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+          if (Math.abs(dx) > 26 || Math.abs(dy) > 26) {
+            if (Math.abs(dx) > Math.abs(dy)) B.Rail.move(dx > 0 ? 1 : -1);
+            else if (dy < 0) B.Rail.jump();
+            else B.Rail.slide();
+          } else {
+            // 轻点：左半屏往左换道，右半屏往右换道
+            B.Rail.move(e.clientX < window.innerWidth / 2 ? -1 : 1);
+          }
+        }
+        swipe = null;
+        return;
+      }
       B.Game.aimEnd();
       B.UI.syncHud(true);
     }
     canvas.addEventListener('pointerup', up);
     canvas.addEventListener('pointercancel', function () {
-      dragging = false;
+      dragging = false; swipe = null;
       if (B.Game.g.mode === 'hop') { B.Hop.setDir(0); return; }
+      if (B.Game.g.mode === 'rail') return;
       if (B.Game.g.mode !== 'runner') B.Game.aimCancel();
     });
     window.addEventListener('blur', function () {
-      dragging = false;
+      dragging = false; swipe = null;
       if (B.Game.g.mode === 'hop') { B.Hop.setDir(0); return; }
+      if (B.Game.g.mode === 'rail') return;
       if (B.Game.g.mode !== 'runner') B.Game.aimCancel();
     });
 
@@ -124,6 +156,14 @@ var B = window.B = window.B || {};
     if (B.Game.g.mode === 'hop') {
       B.Hop.update(rawDt);
       B.Render.frameArcade(B.Hop, now / 1000);
+      B.UI.syncHud(false);
+      return;
+    }
+
+    // 轨道狂奔：三轨伪 3D 无尽跑酷，第四条主循环链路
+    if (B.Game.g.mode === 'rail') {
+      B.Rail.update(rawDt);
+      B.Render.frameArcade(B.Rail, now / 1000);
       B.UI.syncHud(false);
       return;
     }
@@ -210,6 +250,49 @@ var B = window.B = window.B || {};
             ' falls=' + (hs2.falls || 0) + ' won=' + !!hs2.won + ' dead=' + !!hs2.dead +
             ' plats=' + (hs2.plats ? hs2.plats.length : 0) + (herr ? ' ' + herr : ' ok=1');
         } catch (e) { document.title = 'HOPERR ' + (e && e.message); }
+      }
+      // 轨道狂奔同步自检：?simrail=N 用真实 update + render 跑一个「看下一排、换到空道、
+      // 该跳就跳该铲就铲」的机器人，验证无尽生成公平、长跑不崩。正常玩不受影响。
+      if (q.get('simrail')) {
+        try {
+          B.UI.startRail();
+          var rf = parseInt(q.get('simrail'), 10) || 900, rerr = '';
+          for (var rj = 0; rj < rf; rj++) {
+            var rs = B.Rail.state();
+            if (!rs || rs.dead) break;
+            var target = null;
+            for (var rr = 0; rr < rs.rows.length; rr++) {
+              var row = rs.rows[rr], dz = row.z - rs.dist;
+              if (row.hit || dz < 0) continue;
+              if (!target || dz < target.dz) target = { dz: dz, cells: row.cells };
+            }
+            if (target) {
+              var want = 0, bestD = 99;
+              for (var cc = 0; cc < 3; cc++) {
+                if (target.cells[cc]) continue;
+                var d = Math.abs((cc - 1) - rs.lane);
+                if (d < bestD) { bestD = d; want = cc - 1; }
+              }
+              if (want > rs.lane) B.Rail.move(1);
+              else if (want < rs.lane) B.Rail.move(-1);
+              var li2 = rs.lane + 1;
+              var cur = target.cells[li2];
+              if (target.dz < 150 && target.dz > 20) {
+                if (cur === 'barrier') B.Rail.jump();
+                else if (cur === 'beam') B.Rail.slide();
+              }
+            }
+            try { B.Rail.update(1 / 60); } catch (e) { rerr = 'UPDERR ' + e.message; break; }
+            try { B.Render.frameArcade(B.Rail, rj / 60); } catch (e) { rerr = 'RENDERERR ' + e.message; break; }
+          }
+          var rs2 = B.Rail.state() || {};
+          document.title = 'RAIL mode=' + B.Game.g.mode + ' score=' + Math.floor(rs2.score || 0) +
+            ' dist=' + Math.floor(rs2.dist || 0) + ' coins=' + (rs2.coinsGot || 0) +
+            ' lives=' + (rs2.lives || 0) + ' powers=' + (rs2.powers || 0) +
+            ' passed=' + (rs2.passed || 0) + ' genBad=' + (rs2.genBad || 0) +
+            ' hits=' + (rs2.hits || 0) + ' dead=' + !!rs2.dead +
+            ' rows=' + (rs2.rows ? rs2.rows.length : 0) + (rerr ? ' ' + rerr : ' ok=1');
+        } catch (e) { document.title = 'RAILERR ' + (e && e.message); }
       }
       // 弹珠 100+ 关同步自检（无头校验用，与 simrunner 同思路）：?marbletest=N 同步进第 N 关，
       // 跑通"建关 + 几何对齐 + 首帧预测渲染"全链路，把 cols/rows/目标数写进 title 供 --dump-dom 抓取。
@@ -383,7 +466,7 @@ var B = window.B = window.B || {};
     // 注册 Service Worker：让游戏可"安装为独立 App"且离线可玩（仅 http/https 下生效，file:// 忽略）
     if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=32').catch(function () { });
+        navigator.serviceWorker.register('./sw.js?v=33').catch(function () { });
       });
     }
     requestAnimationFrame(loop);

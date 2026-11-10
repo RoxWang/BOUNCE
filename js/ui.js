@@ -6,7 +6,9 @@ B.UI = (function () {
   var Meta = B.Meta, Game = B.Game, A = B.A, U = B.U, Gen = B.Gen;
   var $ = function (id) { return document.getElementById(id); };
   var SCREENS = ['screenHub', 'screenMenu', 'screenLevels', 'screenUpgrades', 'screenRunnerShop',
-    'screenHopShop', 'screenHopLevels', 'screenHopHow', 'screenHopResult', 'screenResult', 'screenHow'];
+    'screenHopShop', 'screenHopLevels', 'screenHopHow', 'screenHopResult',
+    'screenRailShop', 'screenRailHow', 'screenRailResult',
+    'screenResult', 'screenHow'];
   var cur = 'screenHub';
   var howReturn = 'screenHub';       // 从哪个界面进的「玩法介绍」，关闭后就回哪
   var hubFilter = { cat: '全部', q: '' };
@@ -16,16 +18,21 @@ B.UI = (function () {
   // 否则它们的循环会在大厅背后继续跑、把死局画面卡在菜单后面。
   // load(1) 内部会 applyGeo 复位 C.W/C.H（跳跃拾金把视口改成横屏过）并重算渲染缩放。
   function leaveArcade() {
-    if (Game.g.mode !== 'runner' && Game.g.mode !== 'hop') return;
+    if (Game.g.mode !== 'runner' && Game.g.mode !== 'hop' && Game.g.mode !== 'rail') return;
     if (Game.g.mode === 'hop' && B.Hop && B.Hop.cashOut) B.Hop.cashOut();  // 退出前结算本局金币
+    if (Game.g.mode === 'rail' && B.Rail && B.Rail.cashOut) B.Rail.cashOut();
+    if (B.Rail && B.Rail.setPaused) B.Rail.setPaused(false);
     Game.g.mode = 'marble';
     Game.load(1);
     // 虚拟按键立刻切回弹珠那套，别等下一帧主循环 —— 否则退出大厅的瞬间还挂着跳跃键。
-    var mp = $('pad'), hp = $('hopPad'), he = $('hud'), hl = $('btnHopLevels');
+    var mp = $('pad'), hp = $('hopPad'), rp = $('railPad'), he = $('hud'),
+        hl = $('btnHopLevels'), rh = $('btnRailHow');
     if (mp) mp.classList.remove('hidden');
     if (hp) hp.classList.add('hidden');
+    if (rp) rp.classList.add('hidden');
     if (he) he.classList.remove('hop-mode');
     if (hl) hl.classList.add('hidden');
+    if (rh) rh.classList.add('hidden');
   }
 
   // 入场横幅 z-index 比全屏页高，不主动收起来会压在选关 / 结算页上面。
@@ -49,6 +56,7 @@ B.UI = (function () {
     if (name === 'screenRunnerShop') syncRunnerShop();
     if (name === 'screenHopShop') syncHopShop();
     if (name === 'screenHopLevels') syncHopLevels();
+    if (name === 'screenRailShop') syncRailShop();
     if (name === 'screenHub') syncHub();
   }
 
@@ -77,6 +85,14 @@ B.UI = (function () {
   // 结算页关闭后回到游戏：主循环仍在 hop 模式，不用重启，只把界面切回来。
   function resumeHop() { inGame(); syncHud(true); }
 
+  // 从大厅进轨道狂奔：同样必须先关掉覆盖层。
+  function startRail() {
+    inGame();
+    Game.startRail();
+    syncHud(true);
+  }
+  function resumeRail() { inGame(); syncHud(true); }
+
   // ---------- 游戏大厅 ----------
   function syncHub() {
     $('hCoin').textContent = U.fmt(U.coins());
@@ -91,8 +107,9 @@ B.UI = (function () {
       cont.classList.add('hidden');
     }
 
-    // 只有几个游戏时，分类和搜索只是碍事的小字；游戏多了再自动出现。
-    var lean = B.Games.list().length <= 3;
+    // 游戏数量不多时，分类和搜索只是碍事的小字；卡片多到一屏放不下再自动出现。
+    // v33 有 4 个游戏，仍属于「一眼看得全」，保持大厅只剩品牌 + 金币/音效/重置 + 卡片。
+    var lean = B.Games.list().length <= 6;
     $('hubToolbar').classList.toggle('hidden', lean);
     if (lean) { hubFilter.cat = '全部'; hubFilter.q = ''; $('hubSearch').value = ''; }
 
@@ -300,6 +317,74 @@ B.UI = (function () {
     $('btnHopAgain').textContent = r.won ? '重玩本关' : '再来一次';
   }
 
+  // ---------- 轨道狂奔：独立强化 ----------
+  function syncRailShop() {
+    var data = B.Rail.shopData();
+    $('railWallet').textContent = U.fmt(data.wallet);
+    var list = $('railUpList');
+    list.innerHTML = '';
+    data.defs.forEach(function (u) {
+      var lv = data.up[u.id] || 0;
+      var maxed = lv >= u.max;
+      var cost = B.Rail.costOf(u.id);
+      var row = document.createElement('div');
+      row.className = 'up' + (maxed ? ' max' : '');
+      var pips = '';
+      for (var i = 0; i < u.max; i++) pips += '<em class="' + (i < lv ? 'on' : '') + '"></em>';
+      row.innerHTML =
+        '<i>' + u.icon + '</i>' +
+        '<div class="info"><b>' + u.name + ' <span style="color:var(--t3);font-size:12px">Lv.' + lv + '/' + u.max + '</span></b>' +
+        '<span>' + u.desc + '</span><div class="pips">' + pips + '</div></div>';
+      var btn = document.createElement('button');
+      btn.className = 'buy' + (maxed ? ' done' : '');
+      if (maxed) { btn.textContent = 'MAX'; btn.disabled = true; }
+      else {
+        btn.textContent = '◈ ' + U.fmt(cost);
+        btn.disabled = data.wallet < cost;
+        btn.onclick = function () { if (B.Rail.buy(u.id)) { A.play('buy'); syncRailShop(); } };
+      }
+      row.appendChild(btn);
+      list.appendChild(row);
+    });
+  }
+
+  // ---------- 轨道狂奔：GAME OVER 结算 ----------
+  // 与 hop 同理，不能走 show()：show 会 leaveArcade 把主循环切回弹珠。
+  function showRailResult(r) {
+    hideBanner();
+    for (var i = 0; i < SCREENS.length; i++) {
+      var el = $(SCREENS[i]); if (el) el.classList.add('hidden');
+    }
+    cur = 'screenRailResult';
+    $('hud').classList.add('hidden');
+    $('screenRailResult').classList.remove('hidden');
+    $('railRStats').innerHTML =
+      '<div><span>本局分数</span><b>' + Math.floor(r.score) + '</b></div>' +
+      '<div><span>最远距离</span><b>' + r.distance + ' m</b></div>' +
+      '<div><span>最高分</span><b>' + r.best + '</b></div>' +
+      '<div><span>本局金币</span><b>◈ ' + r.coins + '</b></div>' +
+      '<div><span>距离奖励</span><b>◈ ' + r.bonus + '</b></div>' +
+      '<div class="hl"><span>存入金库</span><b>◈ ' + r.total + '</b></div>';
+  }
+
+  // ---------- 轨道狂奔：局内玩法页（冻结世界，不丢本局）----------
+  function openRailHow() {
+    if (Game.g.mode === 'rail' && B.Rail.setPaused) B.Rail.setPaused(true);
+    hideBanner();
+    for (var i = 0; i < SCREENS.length; i++) {
+      var el = $(SCREENS[i]); if (el) el.classList.add('hidden');
+    }
+    cur = 'screenRailHow';
+    $('hud').classList.add('hidden');
+    $('screenRailHow').classList.remove('hidden');
+  }
+  function closeRailHow() {
+    if (cur === 'screenRailHow' && Game.g.mode === 'rail') {
+      if (B.Rail.setPaused) B.Rail.setPaused(false);
+      resumeRail();
+    } else show('screenHub');
+  }
+
   // ---------- 进关 ----------
   function startLevel(n) {
     inGame();
@@ -317,15 +402,18 @@ B.UI = (function () {
   function syncHud(force) {
     var g = Game.g;
     $('hudCoin').textContent = '◈ ' + U.fmt(U.coins());
-    // 跳跃拾金用一套精简 HUD：顶栏不重复显示金币，底部提示下移到虚拟按键那一排。
+    // 街机游戏用一套精简 HUD：画布里已经有本局数字，顶栏不重复、提示条不留空壳。
     var hudEl = $('hud');
-    if (hudEl) hudEl.classList.toggle('hop-mode', g.mode === 'hop');
+    if (hudEl) hudEl.classList.toggle('hop-mode', g.mode === 'hop' || g.mode === 'rail');
     var hlBtn = $('btnHopLevels');
     if (hlBtn) hlBtn.classList.toggle('hidden', g.mode !== 'hop');
-    // 虚拟按键按模式互斥：弹珠用 #pad，跳跃拾金用 #hopPad，无尽冲刺两者都不要。
-    var mp = $('pad'), hp = $('hopPad');
+    var rhBtn = $('btnRailHow');
+    if (rhBtn) rhBtn.classList.toggle('hidden', g.mode !== 'rail');
+    // 虚拟按键按模式互斥，且桌面一律由 CSS 隐藏，只有触屏设备才显示。
+    var mp = $('pad'), hp = $('hopPad'), rp = $('railPad');
     if (mp) mp.classList.toggle('hidden', g.mode !== 'marble');
     if (hp) hp.classList.toggle('hidden', g.mode !== 'hop');
+    if (rp) rp.classList.toggle('hidden', g.mode !== 'rail');
     if (g.mode === 'runner') {
       $('hudName').textContent = '无尽冲刺';
       $('hudGoal').textContent = '方向键 / 拖动 躲开下落方块';
@@ -352,6 +440,19 @@ B.UI = (function () {
       $('btnRestart').classList.add('hidden');
       var alh = $('hudAuto');
       alh.textContent = ''; alh.style.opacity = 0; alh.className = 'autoline';
+      return;
+    }
+    if (g.mode === 'rail') {
+      $('hudName').textContent = '轨道狂奔';
+      $('hudGoal').textContent = '';
+      var sbr = document.querySelector('.statusbar');
+      if (sbr) sbr.style.display = 'none';
+      $('btnMenu').classList.add('hidden');
+      $('btnUndo').classList.add('hidden');
+      $('btnNext').classList.add('hidden');
+      $('btnRestart').classList.add('hidden');
+      var alr = $('hudAuto');
+      alr.textContent = ''; alr.style.opacity = 0; alr.className = 'autoline';
       return;
     }
     var sb2 = document.querySelector('.statusbar');
@@ -523,6 +624,27 @@ B.UI = (function () {
       B.Hop.setJumpHeld(true); B.Hop.jump();
     }, function () { B.Hop.setJumpHeld(false); });
 
+    // 轨道狂奔：强化 / 玩法 / 结算 / 触屏虚拟按键
+    $('btnRailBack').onclick = function () { A.play('click'); show('screenHub'); };
+    $('btnRailHow').onclick = function () { A.play('click'); openRailHow(); };
+    $('btnRailHowBack').onclick = function () { A.play('click'); closeRailHow(); };
+    $('btnRailAgain').onclick = function () { A.play('click'); B.Rail.restart(); resumeRail(); };
+    $('btnRailShopResult').onclick = function () { A.play('click'); show('screenRailShop'); };
+    $('btnRailResultHub').onclick = function () { A.play('click'); show('screenHub'); };
+    function railBtn(id, fn) {
+      var el = $(id);
+      if (!el) return;
+      el.addEventListener('pointerdown', function (e) {
+        A.unlock();
+        try { el.setPointerCapture(e.pointerId); } catch (err) { }
+        fn(); e.preventDefault();
+      });
+    }
+    railBtn('railLeft', function () { B.Rail.move(-1); });
+    railBtn('railRight', function () { B.Rail.move(1); });
+    railBtn('railJump', function () { B.Rail.jump(); });
+    railBtn('railSlide', function () { B.Rail.slide(); });
+
     $('btnHowBack').onclick = function () { A.play('click'); show(howReturn); };
 
     // 对局内：一键回大厅 + 弹珠自己的菜单
@@ -561,6 +683,11 @@ B.UI = (function () {
   // ---------- 键盘：Esc 一律回大厅，随时能停 ----------
   function key(e) {
     var k = e.key.toLowerCase();
+    // 轨道狂奔玩法页是「冻结中的游戏」，必须最先拦住，否则按键会漏到游戏里
+    if (cur === 'screenRailHow') {
+      if (k === 'escape' || k === 'enter') closeRailHow();
+      return;
+    }
     if (Game.g.mode === 'runner') {
       if (k === 'arrowleft') { B.Runner.setDir(-1); e.preventDefault(); }
       else if (k === 'arrowright') { B.Runner.setDir(1); e.preventDefault(); }
@@ -581,6 +708,12 @@ B.UI = (function () {
       }
       return;
     }
+    // 轨道狂奔结算页：主循环还在 rail，先拦住
+    if (cur === 'screenRailResult') {
+      if (k === 'escape') show('screenHub');
+      else if (k === 'r' || k === ' ' || k === 'enter') { B.Rail.restart(); resumeRail(); }
+      return;
+    }
     if (Game.g.mode === 'hop') {
       if (k === 'arrowleft' || k === 'a') { B.Hop.setDir(-1); e.preventDefault(); }
       else if (k === 'arrowright' || k === 'd') { B.Hop.setDir(1); e.preventDefault(); }
@@ -594,6 +727,15 @@ B.UI = (function () {
       else if (k === 'escape') { show('screenHub'); }
       return;
     }
+    if (Game.g.mode === 'rail') {
+      if (k === 'arrowleft' || k === 'a') { B.Rail.move(-1); e.preventDefault(); }
+      else if (k === 'arrowright' || k === 'd') { B.Rail.move(1); e.preventDefault(); }
+      else if (k === 'arrowup' || k === 'w' || k === ' ') { B.Rail.jump(); e.preventDefault(); }
+      else if (k === 'arrowdown' || k === 's') { B.Rail.slide(); e.preventDefault(); }
+      else if (k === 'r') { B.Rail.restart(); resumeRail(); }
+      else if (k === 'escape') { show('screenHub'); }
+      return;
+    }
     if (cur === 'screenHow' && (k === 'escape' || k === 'enter')) { $('btnHowBack').click(); return; }
     if (cur === 'screenResult') {
       if (k === 'n' || k === 'enter') next();
@@ -602,11 +744,12 @@ B.UI = (function () {
       return;
     }
     if (cur === 'screenLevels' || cur === 'screenUpgrades' || cur === 'screenRunnerShop' || cur === 'screenHopShop' ||
-        cur === 'screenHopLevels' || cur === 'screenHopHow' || cur === 'screenMenu') {
+        cur === 'screenRailShop' || cur === 'screenHopLevels' || cur === 'screenHopHow' || cur === 'screenMenu') {
       if (k === 'escape') {
         if (cur === 'screenHopHow') show('screenHopLevels');
         else if (cur === 'screenMenu') show('screenHub');
-        else if (cur === 'screenHopLevels' || cur === 'screenRunnerShop' || cur === 'screenHopShop') show('screenHub');
+        else if (cur === 'screenHopLevels' || cur === 'screenRunnerShop' || cur === 'screenHopShop' ||
+                 cur === 'screenRailShop') show('screenHub');
         else show('screenMenu');
       }
       return;
@@ -628,6 +771,7 @@ B.UI = (function () {
   function boot() {
     Meta.load();
     if (B.Hop && B.Hop.setEndHook) B.Hop.setEndHook(showHopResult);
+    if (B.Rail && B.Rail.setEndHook) B.Rail.setEndHook(showRailResult);
     bind();
     var S = Meta.data();
     $('btnSound').textContent = S.sound ? '♪' : '✕';
@@ -639,6 +783,8 @@ B.UI = (function () {
   return {
     show: show, inGame: inGame, boot: boot, syncHud: syncHud, syncMenu: syncMenu,
     key: key, showResult: showResult, startLevel: startLevel, startRunner: startRunner, startHop: startHop,
-    resumeHop: resumeHop, showHopResult: showHopResult, syncHopLevels: syncHopLevels, next: next
+    resumeHop: resumeHop, showHopResult: showHopResult, syncHopLevels: syncHopLevels,
+    startRail: startRail, resumeRail: resumeRail, showRailResult: showRailResult,
+    syncRailShop: syncRailShop, openRailHow: openRailHow, closeRailHow: closeRailHow, next: next
   };
 })();

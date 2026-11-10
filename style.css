@@ -310,7 +310,8 @@ kbd{
   width:76px;height:76px;font-size:32px;color:#04121a;
   background:linear-gradient(180deg,var(--cyan),#1fa8d8);border-color:transparent;
 }
-/* 跳跃拾金：顶栏不重复显示合集金币（画布内已有本局金币）；提示条是空的，直接不占位 */
+.hk.slide{color:#04121a;background:linear-gradient(180deg,#ffd06a,#e09b12);border-color:transparent}
+/* 跳跃拾金 / 轨道狂奔：顶栏不重复显示合集金币（画布内已有本局数字）；提示条是空的，直接不占位 */
 #hud.hop-mode #hudCoin{display:none}
 #hud.hop-mode .autoline{display:none}
 @media (max-width:640px){

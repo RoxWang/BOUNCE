@@ -173,6 +173,20 @@ B.Game = (function () {
     return g;
   }
 
+  // 轨道狂奔入口：第四个独立游戏（三轨伪 3D 无尽跑酷）。与 hop 共用横屏视野，
+  // 但操作全是离散动作，不复用 hop 的按住持续跑。
+  function startRail() {
+    var geo = B.Gen.geoFor(1);
+    B.Board.applyGeo(geo.cols, geo.rows);
+    B.C.W = 1100; B.C.H = 620;
+    if (B.Render && B.Render.setInsets) B.Render.setInsets(54, 54);
+    if (B.Render) B.Render.resize();
+    g.mode = 'rail';
+    if (B.Music) B.Music.stop();
+    B.Rail.start();
+    return g;
+  }
+
   // 发射点规则（用户硬需求）：球只能从边框打进来，不能从棋盘中间凭空出现。
   // 玩家按下的点 = 瞄准锚点（球会从那条射线上经过），拖拽定方向；把射线往回延长到最近的一条边框，
   // 交点就是球"从框外进来"的入口。四面墙依旧全封闭，进来之后随便反弹。
@@ -519,6 +533,7 @@ B.Game = (function () {
   function restart() {
     if (g.mode === 'runner') { startRunner(); A.play('click'); return; }
     if (g.mode === 'hop') { B.Hop.restart(); A.play('click'); return; }
+    if (g.mode === 'rail') { B.Rail.restart(); A.play('click'); return; }
     var n = g.n;
     load(n);
     A.play('click');
@@ -534,7 +549,7 @@ B.Game = (function () {
   }
 
   return {
-    g: g, load: load, getLevel: getLevel, startRunner: startRunner, startHop: startHop,
+    g: g, load: load, getLevel: getLevel, startRunner: startRunner, startHop: startHop, startRail: startRail,
     aimStart: aimStart, aimMove: aimMove, aimEnd: aimEnd, aimCancel: aimCancel, aimSet: aimSet,
     nudgeAngle: nudgeAngle, nudgePower: nudgePower, fire: fire,
     update: update, undo: undo, restart: restart,
