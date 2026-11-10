@@ -629,11 +629,12 @@ B.Render = (function () {
     FX.drawFlash(ctx, vw, vh);
   }
 
-  // 无尽冲刺每帧：复用世界坐标系变换，让 Runner.draw 直接在世界坐标里画
+  // 街机通用每帧：复用世界坐标系变换，让 runner.draw / hop.draw 直接在世界坐标里画。
+  // 固定宽高比会在上下留黑边；模块自带 bgColor 时把留白染成画面底色，看起来是连续的。
   function frameRunner(runner, t) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, vw, vh);
-    ctx.fillStyle = '#05060c'; ctx.fillRect(0, 0, vw, vh);
+    ctx.fillStyle = (runner && runner.bgColor) || '#05060c'; ctx.fillRect(0, 0, vw, vh);
 
     var sh = FX.shakeXY();
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (ox + sh.x * scale), dpr * (oy + sh.y * scale));

@@ -5,7 +5,8 @@ var B = window.B = window.B || {};
 B.UI = (function () {
   var Meta = B.Meta, Game = B.Game, A = B.A, U = B.U, Gen = B.Gen;
   var $ = function (id) { return document.getElementById(id); };
-  var SCREENS = ['screenHub', 'screenMenu', 'screenLevels', 'screenUpgrades', 'screenRunnerShop', 'screenHopShop', 'screenResult', 'screenHow'];
+  var SCREENS = ['screenHub', 'screenMenu', 'screenLevels', 'screenUpgrades', 'screenRunnerShop',
+    'screenHopShop', 'screenHopLevels', 'screenHopHow', 'screenHopResult', 'screenResult', 'screenHow'];
   var cur = 'screenHub';
   var howReturn = 'screenHub';       // 从哪个界面进的「玩法介绍」，关闭后就回哪
   var hubFilter = { cat: '全部', q: '' };
@@ -20,14 +21,22 @@ B.UI = (function () {
     Game.g.mode = 'marble';
     Game.load(1);
     // 虚拟按键立刻切回弹珠那套，别等下一帧主循环 —— 否则退出大厅的瞬间还挂着跳跃键。
-    var mp = $('pad'), hp = $('hopPad'), he = $('hud');
+    var mp = $('pad'), hp = $('hopPad'), he = $('hud'), hl = $('btnHopLevels');
     if (mp) mp.classList.remove('hidden');
     if (hp) hp.classList.add('hidden');
     if (he) he.classList.remove('hop-mode');
+    if (hl) hl.classList.add('hidden');
+  }
+
+  // 入场横幅 z-index 比全屏页高，不主动收起来会压在选关 / 结算页上面。
+  function hideBanner() {
+    var pb = $('phaseBanner');
+    if (pb) { pb.classList.remove('show'); pb.classList.add('hidden'); }
   }
 
   function show(name) {
     leaveArcade();
+    hideBanner();
     for (var i = 0; i < SCREENS.length; i++) {
       var el = $(SCREENS[i]);
       if (el) el.classList.toggle('hidden', SCREENS[i] !== name);
@@ -39,6 +48,7 @@ B.UI = (function () {
     if (name === 'screenUpgrades') syncUpgrades();
     if (name === 'screenRunnerShop') syncRunnerShop();
     if (name === 'screenHopShop') syncHopShop();
+    if (name === 'screenHopLevels') syncHopLevels();
     if (name === 'screenHub') syncHub();
   }
 
@@ -57,12 +67,15 @@ B.UI = (function () {
     syncHud(true);
   }
 
-  // 从大厅进跳跃拾金：同样必须先关掉大厅这层界面，否则游戏在背后跑。
-  function startHop() {
+  // 从大厅 / 选关页进跳跃拾金第 n 关：必须先关掉那层界面，否则游戏在背后跑。
+  function startHop(n) {
     inGame();
-    Game.startHop();
+    Game.startHop(n);
     syncHud(true);
   }
+
+  // 结算页关闭后回到游戏：主循环仍在 hop 模式，不用重启，只把界面切回来。
+  function resumeHop() { inGame(); syncHud(true); }
 
   // ---------- 游戏大厅 ----------
   function syncHub() {
@@ -248,6 +261,45 @@ B.UI = (function () {
     });
   }
 
+  // ---------- 跳跃拾金：30 关选关（全开，星级只记录不解锁）----------
+  function syncHopLevels() {
+    $('hopStarTotal').textContent = B.Hop.totalStars();
+    var grid = $('hopLevelGrid');
+    grid.innerHTML = '';
+    for (var n = 1; n <= B.Hop.LEVEL_COUNT; n++) {
+      (function (n) {
+        var d = document.createElement('button');
+        var s = B.Hop.starsOf(n);
+        d.className = 'gcell' + (s > 0 ? ' done' : '') + (n === B.Hop.lastLevel() ? ' cur' : '');
+        d.innerHTML = '<b>' + n + '</b>' + (s ? '<span class="st">' + '★'.repeat(s) + '</span>' : '');
+        d.onclick = function () { A.play('click'); startHop(n); };
+        grid.appendChild(d);
+      })(n);
+    }
+  }
+
+  // ---------- 跳跃拾金：通关 / 阵亡结算 ----------
+  // 不能走 show()：show 会 leaveArcade 把主循环切回弹珠，结算页背后的游戏画面就变了。
+  function showHopResult(r) {
+    hideBanner();
+    for (var i = 0; i < SCREENS.length; i++) {
+      var el = $(SCREENS[i]); if (el) el.classList.add('hidden');
+    }
+    cur = 'screenHopResult';
+    $('hud').classList.add('hidden');
+    $('screenHopResult').classList.remove('hidden');
+    $('hopRTitle').textContent = r.won ? '过关' : '游戏结束';
+    $('hopRTitle').className = 'rtitle ' + (r.won ? 'win' : 'lose');
+    $('hopRStars').textContent = r.won ? ('★'.repeat(r.stars) + '☆'.repeat(3 - r.stars)) : '';
+    $('hopRStats').innerHTML =
+      '<div><span>关卡</span><b>第 ' + r.level + ' 关</b></div>' +
+      '<div><span>金币</span><b>◈ ' + r.picked + ' / ' + r.total + '</b></div>' +
+      '<div><span>剩余命</span><b>' + r.lives + ' / ' + r.maxLives + '</b></div>' +
+      '<div class="hl"><span>存入金库</span><b>◈ ' + r.coins + '</b></div>';
+    $('btnHopNext').classList.toggle('hidden', !r.won || r.level >= B.Hop.LEVEL_COUNT);
+    $('btnHopAgain').textContent = r.won ? '重玩本关' : '再来一次';
+  }
+
   // ---------- 进关 ----------
   function startLevel(n) {
     inGame();
@@ -268,6 +320,8 @@ B.UI = (function () {
     // 跳跃拾金用一套精简 HUD：顶栏不重复显示金币，底部提示下移到虚拟按键那一排。
     var hudEl = $('hud');
     if (hudEl) hudEl.classList.toggle('hop-mode', g.mode === 'hop');
+    var hlBtn = $('btnHopLevels');
+    if (hlBtn) hlBtn.classList.toggle('hidden', g.mode !== 'hop');
     // 虚拟按键按模式互斥：弹珠用 #pad，跳跃拾金用 #hopPad，无尽冲刺两者都不要。
     var mp = $('pad'), hp = $('hopPad');
     if (mp) mp.classList.toggle('hidden', g.mode !== 'marble');
@@ -287,7 +341,8 @@ B.UI = (function () {
       return;
     }
     if (g.mode === 'hop') {
-      $('hudName').textContent = '跳跃拾金';
+      var hs = B.Hop.state();
+      $('hudName').textContent = '第 ' + (hs ? hs.level : 1) + ' 关';
       $('hudGoal').textContent = '';
       var sbh = document.querySelector('.statusbar');
       if (sbh) sbh.style.display = 'none';
@@ -296,8 +351,7 @@ B.UI = (function () {
       $('btnNext').classList.add('hidden');
       $('btnRestart').classList.add('hidden');
       var alh = $('hudAuto');
-      alh.textContent = '← → 跑 · 空格 跳';
-      alh.style.opacity = 1; alh.className = 'autoline';
+      alh.textContent = ''; alh.style.opacity = 0; alh.className = 'autoline';
       return;
     }
     var sb2 = document.querySelector('.statusbar');
@@ -441,6 +495,15 @@ B.UI = (function () {
 
     // 跳跃拾金强化 + 虚拟按键（按住左右持续跑、跳跃按下起跳 / 松开收成小跳）
     $('btnHopBack').onclick = function () { A.play('click'); show('screenHub'); };
+    // 选关 / 玩法 / 结算
+    $('btnHopLevels').onclick = function () { A.play('click'); show('screenHopLevels'); };
+    $('btnHopLevelsBack').onclick = function () { A.play('click'); show('screenHub'); };
+    $('btnHopHow').onclick = function () { A.play('click'); show('screenHopHow'); };
+    $('btnHopHowBack').onclick = function () { A.play('click'); show('screenHopLevels'); };
+    $('btnHopAgain').onclick = function () { A.play('click'); B.Hop.restart(); resumeHop(); };
+    $('btnHopNext').onclick = function () { A.play('click'); B.Hop.nextLevel(); resumeHop(); };
+    $('btnHopResultLevels').onclick = function () { A.play('click'); show('screenHopLevels'); };
+    $('btnHopResultHub').onclick = function () { A.play('click'); show('screenHub'); };
     function hopBtn(id, down, up) {
       var el = $(id);
       if (!el) return;
@@ -455,7 +518,8 @@ B.UI = (function () {
     hopBtn('hopLeft', function () { B.Hop.setDir(-1); }, function () { if (B.Hop.state() && B.Hop.state().dir < 0) B.Hop.setDir(0); });
     hopBtn('hopRight', function () { B.Hop.setDir(1); }, function () { if (B.Hop.state() && B.Hop.state().dir > 0) B.Hop.setDir(0); });
     hopBtn('hopJump', function () {
-      if (B.Hop.state() && B.Hop.state().dead) { B.Hop.restart(); return; }
+      var hj = B.Hop.state();
+      if (hj && (hj.dead || hj.won)) return;    // 已结算，交给结算页的按钮
       B.Hop.setJumpHeld(true); B.Hop.jump();
     }, function () { B.Hop.setJumpHeld(false); });
 
@@ -507,6 +571,16 @@ B.UI = (function () {
       else if (k === 'escape') { show('screenHub'); }
       return;
     }
+    // 跳跃拾金结算页：主循环还在 hop，必须先拦住，否则按键会被当成游戏内操作
+    if (cur === 'screenHopResult') {
+      if (k === 'escape') show('screenHub');
+      else if (k === 'r') { B.Hop.restart(); resumeHop(); }
+      else if (k === 'enter' || k === 'n') {
+        var hr = B.Hop.state();
+        if (hr && hr.won && hr.level < B.Hop.LEVEL_COUNT) { B.Hop.nextLevel(); resumeHop(); }
+      }
+      return;
+    }
     if (Game.g.mode === 'hop') {
       if (k === 'arrowleft' || k === 'a') { B.Hop.setDir(-1); e.preventDefault(); }
       else if (k === 'arrowright' || k === 'd') { B.Hop.setDir(1); e.preventDefault(); }
@@ -516,7 +590,7 @@ B.UI = (function () {
         else if (!e.repeat) { B.Hop.setJumpHeld(true); B.Hop.jump(); }
         e.preventDefault();
       }
-      else if (k === 'r') { B.Hop.restart(); }
+      else if (k === 'r') { B.Hop.restart(); resumeHop(); }
       else if (k === 'escape') { show('screenHub'); }
       return;
     }
@@ -527,8 +601,14 @@ B.UI = (function () {
       else if (k === 'escape') show('screenHub');
       return;
     }
-    if (cur === 'screenLevels' || cur === 'screenUpgrades' || cur === 'screenRunnerShop' || cur === 'screenHopShop' || cur === 'screenMenu') {
-      if (k === 'escape') show(cur === 'screenMenu' ? 'screenHub' : ((cur === 'screenRunnerShop' || cur === 'screenHopShop') ? 'screenHub' : 'screenMenu'));
+    if (cur === 'screenLevels' || cur === 'screenUpgrades' || cur === 'screenRunnerShop' || cur === 'screenHopShop' ||
+        cur === 'screenHopLevels' || cur === 'screenHopHow' || cur === 'screenMenu') {
+      if (k === 'escape') {
+        if (cur === 'screenHopHow') show('screenHopLevels');
+        else if (cur === 'screenMenu') show('screenHub');
+        else if (cur === 'screenHopLevels' || cur === 'screenRunnerShop' || cur === 'screenHopShop') show('screenHub');
+        else show('screenMenu');
+      }
       return;
     }
     // 输入框里别抢按键
@@ -547,6 +627,7 @@ B.UI = (function () {
 
   function boot() {
     Meta.load();
+    if (B.Hop && B.Hop.setEndHook) B.Hop.setEndHook(showHopResult);
     bind();
     var S = Meta.data();
     $('btnSound').textContent = S.sound ? '♪' : '✕';
@@ -557,6 +638,7 @@ B.UI = (function () {
 
   return {
     show: show, inGame: inGame, boot: boot, syncHud: syncHud, syncMenu: syncMenu,
-    key: key, showResult: showResult, startLevel: startLevel, startRunner: startRunner, startHop: startHop, next: next
+    key: key, showResult: showResult, startLevel: startLevel, startRunner: startRunner, startHop: startHop,
+    resumeHop: resumeHop, showHopResult: showHopResult, syncHopLevels: syncHopLevels, next: next
   };
 })();

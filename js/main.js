@@ -32,9 +32,9 @@ var B = window.B = window.B || {};
       }
       if (B.Game.g.mode === 'hop') {
         // 按住画布左 / 右半区 = 往那边持续跑，松手停；起跳交给空格或屏幕 ⤴ 按钮。
-        // 死亡画面点任意位置 = 重来。
-        if (B.Hop.state() && B.Hop.state().dead) B.Hop.restart();
-        else B.Hop.setDir(w.x < B.C.W / 2 ? -1 : 1);
+        // 通关/阵亡由 DOM 结算页接管，画布不再响应重来，避免和结算按钮打架。
+        var hst = B.Hop.state();
+        if (hst && !hst.dead && !hst.won) B.Hop.setDir(w.x < B.C.W / 2 ? -1 : 1);
         dragging = true;
         try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
         e.preventDefault();
@@ -172,27 +172,43 @@ var B = window.B = window.B || {};
             ' dead=' + !!s.dead + ' reachBad=' + (s._reachBad || 0) + (renderErr ? ' ' + renderErr : '');
         } catch (e) { document.title = 'SIMERR ' + (e && e.message); }
       }
-      // 跳跃拾金同步自检：?simhop=N 直接驱动真实 update + render，周期性起跳模拟真人操作，
-      // 把分数 / 金币 / 命数 / 生成违规数写进 title 供 --dump-dom 抓取。正常玩不受影响。
+      // 跳跃拾金同步自检：?simhop=N[&simhoplevel=M] 用真实 update + render 跑一个只会向右跑、
+      // 到平台边缘/尖刺前起跳的机器人，验证固定关卡真的能走到旗子。正常玩不受影响。
       if (q.get('simhop')) {
         try {
-          B.UI.startHop();
-          B.Hop.reset(parseInt(q.get('simhopseed'), 10) || 20261109);
-          var hf = parseInt(q.get('simhop'), 10) || 600, herr = '';
-          B.Hop.setDir(1);
+          B.UI.startHop(parseInt(q.get('simhoplevel'), 10) || 1);
+          B.Hop.setJumpHeld(true);                       // 全程大跳，不砍上升速度
+          var hf = parseInt(q.get('simhop'), 10) || 900, herr = '';
           for (var hj = 0; hj < hf; hj++) {
+            var hs = B.Hop.state();
+            if (!hs || hs.dead || hs.won) break;
+            var hp = hs.p, foot = null;
+            for (var qi = 0; qi < hs.plats.length; qi++) {
+              var q2 = hs.plats[qi];
+              if (q2.kind === 'high') continue;
+              if (hp.x + 16 >= q2.x && hp.x + 16 <= q2.x + q2.w &&
+                  Math.abs(hp.y + 46 - q2.y) < 6) { foot = q2; break; }
+            }
+            var need = false;
+            if (foot && hp.grounded) {
+              if (foot.x + foot.w - (hp.x + 32) < 78) need = true;   // 快到边缘
+              for (var spi = 0; spi < hs.spikes.length; spi++) {
+                var sk = hs.spikes[spi];
+                if (sk.x > hp.x && sk.x - hp.x < 96 && Math.abs(sk.y - (hp.y + 46)) < 40) need = true;
+              }
+            }
+            if (need) B.Hop.jump();
+            B.Hop.setDir(1);
             try { B.Hop.update(1 / 60); } catch (e) { herr = 'UPDERR ' + e.message; break; }
             try { B.Render.frameArcade(B.Hop, hj / 60); } catch (e) { herr = 'RENDERERR ' + e.message; break; }
-            if (B.Hop.state() && B.Hop.state().dead) break;
-            if (hj % 37 === 0) B.Hop.jump();
           }
           var hs2 = B.Hop.state() || {};
-          document.title = 'HOP mode=' + B.Game.g.mode + ' score=' + Math.floor(hs2.score || 0) +
-            ' coins=' + (hs2.coinsGot || 0) + ' lives=' + (hs2.lives || 0) +
-            ' picked=' + (hs2.picked || 0) + ' genBad=' + (hs2.genBad || 0) +
-            ' falls=' + (hs2.falls || 0) + ' dead=' + !!hs2.dead +
-            ' plats=' + (hs2.plats ? hs2.plats.length : 0) +
-            (herr ? ' ' + herr : ' ok=1');
+          document.title = 'HOP mode=' + B.Game.g.mode + ' level=' + hs2.level +
+            ' x=' + Math.floor(hs2.p ? hs2.p.x : -1) + ' goal=' + Math.floor(hs2.goalX || 0) +
+            ' stars=' + (hs2.stars || 0) + ' coins=' + (hs2.coinsGot || 0) + '/' + (hs2.coinsTotal || 0) +
+            ' lives=' + (hs2.lives || 0) + ' genBad=' + (hs2.genBad || 0) +
+            ' falls=' + (hs2.falls || 0) + ' won=' + !!hs2.won + ' dead=' + !!hs2.dead +
+            ' plats=' + (hs2.plats ? hs2.plats.length : 0) + (herr ? ' ' + herr : ' ok=1');
         } catch (e) { document.title = 'HOPERR ' + (e && e.message); }
       }
       // 弹珠 100+ 关同步自检（无头校验用，与 simrunner 同思路）：?marbletest=N 同步进第 N 关，
@@ -367,7 +383,7 @@ var B = window.B = window.B || {};
     // 注册 Service Worker：让游戏可"安装为独立 App"且离线可玩（仅 http/https 下生效，file:// 忽略）
     if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=31').catch(function () { });
+        navigator.serviceWorker.register('./sw.js?v=32').catch(function () { });
       });
     }
     requestAnimationFrame(loop);

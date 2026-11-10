@@ -129,6 +129,7 @@ kbd{
 .lhead h2{font-size:26px;font-weight:900}
 .lhead span{font-size:13px;color:var(--t3)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:11px;margin-bottom:26px}
+.lbtns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
 .gcell{
   aspect-ratio:1;border-radius:13px;border:1px solid var(--line2);background:var(--card);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
@@ -169,7 +170,8 @@ kbd{
 .up .buy.done{background:rgba(70,224,138,.16);color:var(--green);border-color:rgba(70,224,138,.3)}
 
 /* 结算 */
-.ri{text-align:center;max-width:440px}
+/* 明确宽度：flex 容器里只写 max-width 会被内容压成一条窄柱，标签和数字挤成一团 */
+.ri{text-align:center;width:100%;max-width:440px}
 .rtitle{font-size:44px;font-weight:900;letter-spacing:3px;line-height:1.1}
 .rtitle.win{color:var(--green);text-shadow:0 0 40px rgba(70,224,138,.4)}
 .rtitle.clutch{color:var(--amber);text-shadow:0 0 50px rgba(255,176,46,.65);animation:clutchpop .5s ease-out}
@@ -189,17 +191,18 @@ kbd{
 /* 怎么玩 */
 .hi{max-width:620px;color:var(--t1)}
 .hi h2{font-size:26px;font-weight:900;margin-bottom:18px}
-.hl{display:flex;flex-direction:column;gap:14px;font-size:14px;line-height:1.7}
-.hl > div{
+/* 只作用于玩法页 .hi 里的列表：结算页的 .rstats div.hl 是「高亮行」，同名但完全不同的东西 */
+.hi .hl{display:flex;flex-direction:column;gap:14px;font-size:14px;line-height:1.7}
+.hi .hl > div{
   background:var(--card);border:1px solid var(--line);border-left:3px solid var(--cyan);
   border-radius:0 12px 12px 0;padding:14px 18px;
 }
-.hl > div > b{display:block;font-size:14.5px;font-weight:800;margin-bottom:4px;color:var(--cyan)}
-.hl .step > b{color:var(--amber)}
-.hl span{color:var(--t2)}
-.hl b{color:var(--t1)}
-.hl .gold{color:var(--amber)}
-.hl .red{color:var(--red)}
+.hi .hl > div > b{display:block;font-size:14.5px;font-weight:800;margin-bottom:4px;color:var(--cyan)}
+.hi .hl .step > b{color:var(--amber)}
+.hi .hl span{color:var(--t2)}
+.hi .hl b{color:var(--t1)}
+.hi .hl .gold{color:var(--amber)}
+.hi .hl .red{color:var(--red)}
 .lg{display:inline-block;width:13px;height:13px;border-radius:3px;margin-right:7px;vertical-align:-1px}
 .lg.brick{background:linear-gradient(160deg,#5a86ff,#2d4bb8)}
 .lg.target{background:linear-gradient(160deg,#ffd470,#e09b12);box-shadow:0 0 8px rgba(255,176,46,.7)}
@@ -284,10 +287,10 @@ kbd{
   background:linear-gradient(180deg,var(--cyan),#1fa8d8);border-color:transparent;
 }
 .pk.fire:active{background:linear-gradient(180deg,#5fe2ff,#2bb8e6)}
-/* ---------- 跳跃拾金：左右跑 + 起跳（只在粗指针设备出现，桌面用方向键 / 空格）---------- */
+/* ---------- 跳跃拾金：左右跑 + 起跳（只在触屏出现；桌面用方向键/空格，三个大按钮纯属碍事）---------- */
 #hud .hop-pad{
   position:absolute;left:16px;right:16px;bottom:16px;
-  display:flex;align-items:flex-end;justify-content:space-between;
+  display:none;align-items:flex-end;justify-content:space-between;
   pointer-events:none;opacity:.72;transition:opacity .2s;
 }
 #hud .hop-pad:hover{opacity:1}
@@ -307,15 +310,14 @@ kbd{
   width:76px;height:76px;font-size:32px;color:#04121a;
   background:linear-gradient(180deg,var(--cyan),#1fa8d8);border-color:transparent;
 }
-/* 跳跃拾金：顶栏不重复显示合集金币（画布内已有本局金币），提示条下移到按键那一排 */
+/* 跳跃拾金：顶栏不重复显示合集金币（画布内已有本局金币）；提示条是空的，直接不占位 */
 #hud.hop-mode #hudCoin{display:none}
-#hud.hop-mode .autoline{bottom:26px;font-size:12.5px;padding:6px 14px}
+#hud.hop-mode .autoline{display:none}
 @media (max-width:640px){
-  #hud.hop-mode .autoline{bottom:104px}
   .hk{width:54px;height:54px;font-size:22px}
   .hk.jump{width:64px;height:64px;font-size:27px}
 }
-/* 触屏设备才显示整套方向键 */
+/* 触屏设备才显示整套方向键；桌面（含 MacBook 触控板）一律不显示 */
 @media (hover:none) and (pointer:coarse){
   #hud .pad{display:grid;opacity:1}
   #hud .hop-pad{display:flex}

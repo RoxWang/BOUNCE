@@ -150,20 +150,26 @@ B.Game = (function () {
     return g;
   }
 
-  // 跳跃拾金入口：第三个独立游戏（横版平台跳跃）。
+  // 跳跃拾金入口：第三个独立游戏（30 关关卡制横版跑跳）。
   // 跟 startRunner 一样，进游戏前必须复位棋盘几何：刚从弹珠 16×16 大地图退回来时
   // C.W/C.H 还撑着，不复位的话画布缩放会按大地图算、整个世界被挤偏。
-  function startHop() {
+  function startHop(n) {
     var geo = B.Gen.geoFor(1);
     B.Board.applyGeo(geo.cols, geo.rows);  // 先把 16×16 大地图复位回来
     // 横版跑跳要横屏视野。C.W/C.H 同时也是渲染器缩放和 clip 的依据，改这里就能整条链路一起换；
     // 弹珠物理在 hop 模式不跑，改尺寸不会污染它；退出时 load(1) 里的 applyGeo 会自动恢复。
     B.C.W = 1100; B.C.H = 620;
-    if (B.Render && B.Render.setInsets) B.Render.setInsets(54, 54);   // 底部只留虚拟按键和一句提示
+    if (B.Render && B.Render.setInsets) B.Render.setInsets(54, 54);
     if (B.Render) B.Render.resize();
     g.mode = 'hop';
     if (B.Music) B.Music.stop();          // 别把无尽冲刺的背景音乐带进新游戏
-    B.Hop.init();
+    B.Hop.start(n || B.Hop.lastLevel());
+    var pb = document.getElementById('phaseBanner');
+    if (pb) {
+      pb.innerHTML = '第 ' + B.Hop.state().level + ' 关 · 走到旗子过关';
+      pb.classList.remove('hidden'); pb.classList.add('show');
+      setTimeout(function () { pb.classList.remove('show'); setTimeout(function () { pb.classList.add('hidden'); }, 420); }, 2200);
+    }
     return g;
   }
 
