@@ -362,6 +362,7 @@ B.UI = (function () {
       '<div><span>本局分数</span><b>' + Math.floor(r.score) + '</b></div>' +
       '<div><span>最远距离</span><b>' + r.distance + ' m</b></div>' +
       '<div><span>最高分</span><b>' + r.best + '</b></div>' +
+      '<div><span>最高连击</span><b>×' + (r.combo || 0) + '</b></div>' +
       '<div><span>本局金币</span><b>◈ ' + r.coins + '</b></div>' +
       '<div><span>距离奖励</span><b>◈ ' + r.bonus + '</b></div>' +
       '<div class="hl"><span>存入金库</span><b>◈ ' + r.total + '</b></div>';

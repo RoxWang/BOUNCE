@@ -6,10 +6,10 @@
 <meta name="description" content="BOUNCE · 小游戏合集。">
 <title>BOUNCE</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%233fd6ff'/%3E%3Cpath d='M4 26 L28 10' stroke='%23ffb02e' stroke-width='3' stroke-linecap='round' stroke-dasharray='4 3'/%3E%3C/svg%3E">
-<link rel="manifest" href="manifest.webmanifest?v=33">
+<link rel="manifest" href="manifest.webmanifest?v=34">
 <meta name="theme-color" content="#05060c">
 <link rel="apple-touch-icon" href="icon-512.png">
-<link rel="stylesheet" href="style.css?v=33">
+<link rel="stylesheet" href="style.css?v=34">
 </head>
 <body>
 <div id="app">
@@ -255,13 +255,14 @@
     <div class="hi">
       <h2>怎么玩</h2>
       <div class="hl">
-        <div class="step"><b>目标</b><span>三条轨道一直往前跑，没有终点。跑得越远分越高，速度也会越来越快。</span></div>
-        <div class="step"><b>换道</b><span><kbd>←→</kbd> 或 <kbd>A D</kbd> 左右换一条道。触屏点屏幕方向键，或在画面上左右拖动。</span></div>
-        <div class="step"><b>跳</b><span><kbd>↑</kbd> / <kbd>W</kbd> / <kbd>空格</kbd> 跳过橙色低栏。在画面上往上拖也行。</span></div>
-        <div class="step"><b>下滑</b><span><kbd>↓</kbd> / <kbd>S</kbd> 从黄色横杆下面钻过去。在画面上往下拖也行。</span></div>
-        <div class="step"><b>红色车厢</b><span>跳和钻都没用，只能提前换道。每一排至少留一条空道，不会把你堵死。</span></div>
-        <div class="step"><b>3 条命</b><span>撞障碍扣 1 条命，扣完就结束；扣命后短暂无敌。护盾能挡一次。捡金币攒金库。</span></div>
-        <div class="step"><b>加 buff</b><span>绿色 ◎ 磁石自动吸金币、橙色 ×2 分数翻倍，都限时；蓝色 ⬡ 护盾能挡一次伤害，不过期。金币还能去「强化」买永久加成：多一条命、开局带护盾、磁石范围、得分加成。</span></div>
+        <div class="step"><b>目标</b><span>三条轨道一直往前跑，没有终点，越跑越快。</span></div>
+        <div class="step"><b>换道</b><span><kbd>←→</kbd> 或 <kbd>A D</kbd> 换道；触屏点方向键，或左右拖动。</span></div>
+        <div class="step"><b>跳 / 下滑</b><span><kbd>↑</kbd> / <kbd>空格</kbd> 跳过橙色低栏，<kbd>↓</kbd> 钻过黄色横杆；上下拖动也行。</span></div>
+        <div class="step"><b>红色车厢</b><span>跳和钻都没用，只能提前换道。每排至少留一条空道，标线会提前亮出安全道。</span></div>
+        <div class="step"><b>金币在险道</b><span>金币串在有障碍的道上，跳着滑着穿过去才拿得满；空道只留一枚。</span></div>
+        <div class="step"><b>连击</b><span>跳过、钻过、擦着车厢过都攒连击，得分和金币跟着涨，撞一次清零；障碍两三排一组。</span></div>
+        <div class="step"><b>3 条命</b><span>撞一次扣 1 条，扣完结束；护盾挡一次，冲刺段没有障碍。</span></div>
+        <div class="step"><b>加 buff</b><span>绿色 ◎ 磁石、橙色 ×2 限时；蓝色 ⬡ 护盾挡一次。金币去「强化」买永久加成。</span></div>
       </div>
       <button id="btnRailHowBack" class="btn primary">知道了</button>
     </div>
@@ -327,20 +328,20 @@
 </div>
 
 <!-- ?v= is the cache stamp: bump every v= by one each time code changes, so the browser re-downloads. -->
-<script src="js/util.js?v=33"></script>
-<script src="js/audio.js?v=33"></script>
-<script src="js/music.js?v=33"></script>
-<script src="js/board.js?v=33"></script>
-<script src="js/physics.js?v=33"></script>
-<script src="js/levelgen.js?v=33"></script>
-<script src="js/fx.js?v=33"></script>
-<script src="js/render.js?v=33"></script>
-<script src="js/meta.js?v=33"></script>
-<script src="js/game.js?v=33"></script>
-<script src="js/runner.js?v=33"></script>
-<script src="js/hop.js?v=33"></script>
-<script src="js/rail.js?v=33"></script>
-<script src="js/ui.js?v=33"></script>
-<script src="js/main.js?v=33"></script>
+<script src="js/util.js?v=34"></script>
+<script src="js/audio.js?v=34"></script>
+<script src="js/music.js?v=34"></script>
+<script src="js/board.js?v=34"></script>
+<script src="js/physics.js?v=34"></script>
+<script src="js/levelgen.js?v=34"></script>
+<script src="js/fx.js?v=34"></script>
+<script src="js/render.js?v=34"></script>
+<script src="js/meta.js?v=34"></script>
+<script src="js/game.js?v=34"></script>
+<script src="js/runner.js?v=34"></script>
+<script src="js/hop.js?v=34"></script>
+<script src="js/rail.js?v=34"></script>
+<script src="js/ui.js?v=34"></script>
+<script src="js/main.js?v=34"></script>
 </body>
 </html>

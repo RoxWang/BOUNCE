@@ -291,7 +291,9 @@ var B = window.B = window.B || {};
             ' lives=' + (rs2.lives || 0) + ' powers=' + (rs2.powers || 0) +
             ' passed=' + (rs2.passed || 0) + ' genBad=' + (rs2.genBad || 0) +
             ' hits=' + (rs2.hits || 0) + ' dead=' + !!rs2.dead +
-            ' rows=' + (rs2.rows ? rs2.rows.length : 0) + (rerr ? ' ' + rerr : ' ok=1');
+            ' rows=' + (rs2.rows ? rs2.rows.length : 0) +
+            ' grazes=' + (rs2.grazes || 0) + ' combo=' + (rs2.comboBest || 0) +
+            (rerr ? ' ' + rerr : ' ok=1');
         } catch (e) { document.title = 'RAILERR ' + (e && e.message); }
       }
       // 弹珠 100+ 关同步自检（无头校验用，与 simrunner 同思路）：?marbletest=N 同步进第 N 关，
@@ -466,7 +468,7 @@ var B = window.B = window.B || {};
     // 注册 Service Worker：让游戏可"安装为独立 App"且离线可玩（仅 http/https 下生效，file:// 忽略）
     if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=33').catch(function () { });
+        navigator.serviceWorker.register('./sw.js?v=34').catch(function () { });
       });
     }
     requestAnimationFrame(loop);
