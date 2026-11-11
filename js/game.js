@@ -286,11 +286,11 @@ B.Game = (function () {
 
   // 键盘 / 触屏：直接调角度与力度，鼠标拖也是往这俩变量里灌
   function nudgeAngle(d) {
-    if (g.state !== 'aim') return;
+    if (g.state !== 'aim' && g.state !== 'fly') return;   // 连发：飞行中也能调下一发的角度
     aimSet(g.aimAngle + d);
   }
   function nudgePower(d) {
-    if (g.state !== 'aim') return;
+    if (g.state !== 'aim' && g.state !== 'fly') return;
     g.power = U.clamp(g.power + d, 0.55, 1);
     updatePreview();
   }
@@ -473,13 +473,19 @@ B.Game = (function () {
     if (g.bestCombo >= 6) FX.text(g.board.launchX, C.LAUNCH_Y - 56, '最高 ' + g.bestCombo + ' 连击', '#9beaff', 17);
     g.bestCombo = 0;
     g.combo = 0;
-    g.aiming = false; g.preview = null;
+    // 玩家可能正拖着瞄下一发（球还在飞时就按下了），别把这一发吞掉：
+    // 保留锚点和 aiming，只按挪过动块后的棋盘重算入口与虚线。
+    var keepAim = g.aiming;
     stepMovers();
     reshufflePortals(g.board, g.n);
-    // 动块挪过之后重新算入口（边框空格可能变了），别让出生点落在刚挪来的砖上
-    g.aimAnchor = { x: g.board.launchX, y: C.BY + C.BH / 2 };
-    g.marker = spawnPoint();
+    if (!keepAim) {
+      g.aiming = false; g.preview = null;
+      // 动块挪过之后重新算入口（边框空格可能变了），别让出生点落在刚挪来的砖上
+      g.aimAnchor = { x: g.board.launchX, y: C.BY + C.BH / 2 };
+    }
     g.state = 'aim';
+    g.marker = spawnPoint();
+    if (keepAim) updatePreview();     // 棋盘变了，正在瞄的虚线要跟着重算
     A.play('back');
   }
 

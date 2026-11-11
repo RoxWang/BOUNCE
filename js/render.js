@@ -526,7 +526,7 @@ B.Render = (function () {
   function launcher(g, t) {
     var m = g.marker || { x: g.board.launchX, y: C.BY + C.BH - C.BALL_R - 2 };
     var x = m.x, y = m.y;
-    var lastOne = g.balls === 1 && g.state === 'aim';   // 最后一颗：全场进入紧张态
+    var lastOne = g.balls === 1 && (g.state === 'aim' || g.state === 'fly');   // 最后一颗：全场进入紧张态（连发时也生效）
     ctx.save();
     // 光环（呼吸）
     var pl = 0.5 + 0.5 * Math.sin(t * (lastOne ? 7 : 3));

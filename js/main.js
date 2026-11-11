@@ -51,7 +51,8 @@ var B = window.B = window.B || {};
         e.preventDefault();
         return;
       }
-      if (B.Game.state() !== 'aim') return;
+      // 连发：球还在飞时按下也能重新瞄准，从任意边框位置再打一颗，没有等待或冷却
+      if (B.Game.state() !== 'aim' && B.Game.state() !== 'fly') return;
       dragging = true;
       B.Game.aimStart(w.x, w.y);
       try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
@@ -315,6 +316,52 @@ var B = window.B = window.B || {};
             ' targets=' + (b.cells ? B.Board.countTargets(b) : '?') + ' portals=' + pc + ' ok=1';
         } catch (e) { document.title = 'MERR ' + (e && e.message); }
       }
+      // 连发「真实输入链路」自检：?inputfire=1
+      // 派发真实 pointer 事件到 canvas：第一颗还在飞时换个位置按下-拖动-松手，必须真射出第二颗；
+      // 再按一次空格，验证键盘路径也没被锁。
+      // 与 ?multiballtest 的区别：那条直接调 Game.fire()（走后门），这条走完整输入层，
+      // 防止以后有人把 state==='aim' 的判断加回 pointerdown / 键盘 / 虚拟按键。
+      // 正常玩完全不受影响。
+      if (q.get('inputfire')) {
+        try {
+          B.Game.load(5);
+          var ig = B.Game.g, IC = B.C;
+          ig.state = 'aim'; ig.aiming = false; ig.balls = 9; ig.shots = [];
+          var iv = B.Render.view();
+          function icli(wx, wy) { return { x: iv.ox + wx * iv.scale, y: iv.oy + wy * iv.scale }; }
+          function ipe(type, p) {
+            return new PointerEvent(type, {
+              bubbles: true, cancelable: true, pointerId: 1,
+              pointerType: 'mouse', clientX: p.x, clientY: p.y
+            });
+          }
+          function idrag(p1, p2) {
+            canvas.dispatchEvent(ipe('pointerdown', p1));
+            canvas.dispatchEvent(ipe('pointermove', p2));
+            canvas.dispatchEvent(ipe('pointerup', p2));
+          }
+          // 第一发：中间按下往上拖 → 球从底边进
+          idrag(icli(IC.BX + IC.BW / 2, IC.BY + IC.BH * 0.62),
+                icli(IC.BX + IC.BW / 2, IC.BY + IC.BH * 0.25));
+          var iS1 = ig.shots.length, iSt1 = ig.state, iB1 = ig.balls;
+          var iA1 = ig.aimAnchor ? ig.aimAnchor.x : -1;
+          // 第二发：球还在飞，换个横向位置按下 → 不同边框入口
+          idrag(icli(IC.BX + IC.BW * 0.3, IC.BY + IC.BH * 0.62),
+                icli(IC.BX + IC.BW * 0.3, IC.BY + IC.BH * 0.25));
+          var iS2 = ig.shots.length, iSt2 = ig.state, iB2 = ig.balls;
+          var iA2 = ig.aimAnchor ? ig.aimAnchor.x : -1;
+          // 第三发：飞行中按空格，验证键盘入口（ui.js 的 key 分支）
+          B.UI.key({ key: ' ', repeat: false, preventDefault: function () { } });
+          var iS3 = ig.shots.length, iB3 = ig.balls;
+          var iOk = iS1 === 1 && iSt1 === 'fly' && iB1 === 8 &&
+                    iS2 === 2 && iSt2 === 'fly' && iB2 === 7 &&
+                    Math.abs(iA2 - iA1) > 20 && iS3 === 3 && iB3 === 6;
+          document.title = 'INFIRE s1=' + iS1 + ' st1=' + iSt1 + ' b1=' + iB1 +
+            ' s2=' + iS2 + ' st2=' + iSt2 + ' b2=' + iB2 +
+            ' anchorDiff=' + Math.abs(iA2 - iA1).toFixed(1) +
+            ' s3=' + iS3 + ' b3=' + iB3 + (iOk ? ' ok=1' : ' FAIL');
+        } catch (e) { document.title = 'INFIRE ERR ' + (e && e.message); }
+      }
       // 多球（连发 + 球间弹性碰撞）真实游戏路径自检：?multiballtest=1
       // 直接驱动真实游戏代码：连发两球（第一颗还在飞就射第二颗）→ 推进 update 真实链路 → runMulti 含在飞球预测 → 头对头碰撞交换速度。
       // 正常玩完全不受影响。
@@ -468,7 +515,7 @@ var B = window.B = window.B || {};
     // 注册 Service Worker：让游戏可"安装为独立 App"且离线可玩（仅 http/https 下生效，file:// 忽略）
     if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./sw.js?v=35').catch(function () { });
+        navigator.serviceWorker.register('./sw.js?v=36').catch(function () { });
       });
     }
     requestAnimationFrame(loop);

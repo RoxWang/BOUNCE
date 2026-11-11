@@ -482,7 +482,7 @@ B.UI = (function () {
     }
 
     var line = $('hudAuto');
-    if (g.state === 'aim') {
+    if (g.state === 'aim' || (g.state === 'fly' && g.aiming)) {
       var txt;
       if (g.preview && g.preview.cleared) {
         txt = '这一发能清完目标 —— 松手';
@@ -503,7 +503,7 @@ B.UI = (function () {
       line.style.opacity = 0;
     }
 
-    $('hudBalls').style.color = g.balls === 1 && g.state === 'aim' ? 'var(--red)' : '';
+    $('hudBalls').style.color = g.balls === 1 && (g.state === 'aim' || g.state === 'fly') ? 'var(--red)' : '';
     $('btnUndo').classList.toggle('hidden', !(g.state === 'aim' && g.snap));
     $('btnNext').classList.toggle('hidden', g.state !== 'over');
   }
@@ -673,7 +673,7 @@ B.UI = (function () {
     pad('padRotR', function () { Game.nudgeAngle(B.C.ROT_STEP); });
     pad('padPwrU', function () { Game.nudgePower(0.05); });
     pad('padPwrD', function () { Game.nudgePower(-0.05); });
-    pad('padFire', function () { if (Game.g.state === 'aim') Game.fire(); });
+    pad('padFire', function () { if (Game.g.state === 'aim' || Game.g.state === 'fly') Game.fire(); });
 
     $('howSeg').textContent = Meta.stats().segs;
   }
@@ -765,7 +765,7 @@ B.UI = (function () {
     else if (k === 'arrowright') { Game.nudgeAngle(B.C.ROT_STEP); e.preventDefault(); }
     else if (k === 'arrowup') { Game.nudgePower(0.05); e.preventDefault(); }
     else if (k === 'arrowdown') { Game.nudgePower(-0.05); e.preventDefault(); }
-    else if (k === ' ' || k === 'enter') { if (Game.g.state === 'aim') { Game.fire(); syncHud(true); } e.preventDefault(); }
+    else if (k === ' ' || k === 'enter') { if (Game.g.state === 'aim' || Game.g.state === 'fly') { Game.fire(); syncHud(true); } e.preventDefault(); }
     else if (k === 'r') { Game.restart(); syncHud(true); }
     else if (k === 'z') { if (Game.undo()) syncHud(true); }
     else if (k === 'n' && Game.g.state === 'over') next();

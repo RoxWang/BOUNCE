@@ -1,7 +1,7 @@
 // sw.js —— BOUNCE 离线缓存 + 可安装为独立 App（PWA / Progressive Web App）
 // 策略：同域 GET 全部缓存。带 ?v= 版本戳的资源 URL 天然唯一 → 发新版自动命中新文件，不会脏缓存；
 // HTML 走 network-first（保证你改完重新部署，页面能立刻更新），其余资源 cache-first（秒开）。
-const CACHE = 'bounce-v35';
+const CACHE = 'bounce-v36';
 
 self.addEventListener('install', function () { self.skipWaiting(); });
 
