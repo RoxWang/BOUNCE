@@ -84,7 +84,25 @@ B.Meta = (function () {
     try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* 隐私模式下写不了，不影响玩 */ }
   }
 
-  function reset() { S = fresh(); save(); }
+  // 重置 = 清空整个合集的进度，不只是弹珠这一档。
+  // 文案承诺"关卡、金币和强化都会丢失"，所以其它三款游戏的强化/星级/最高分、统一金库、
+  // 以及关卡缓存都要一起清；漏掉任何一项都会让玩家以为清了其实没清。
+  function reset() {
+    S = fresh(); save();
+    try {
+      localStorage.removeItem('bounce.coins');
+      localStorage.removeItem('bounce.s2up');   localStorage.removeItem('bounce.s2best');   localStorage.removeItem('bounce.s2coin');
+      localStorage.removeItem('bounce.hopup');  localStorage.removeItem('bounce.hopstars');  localStorage.removeItem('bounce.hoplast');
+      localStorage.removeItem('bounce.railup'); localStorage.removeItem('bounce.railbest');
+      // 关卡缓存键形如 bounce.lv.v27.<关号>，按前缀清
+      var dead = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf('bounce.lv.') === 0) dead.push(k);
+      }
+      for (var j = 0; j < dead.length; j++) localStorage.removeItem(dead[j]);
+    } catch (e) { /* 隐私模式下读不了 localStorage，忽略 */ }
+  }
 
   function data() { return S; }
 
@@ -134,7 +152,8 @@ B.Meta = (function () {
     if (!old || stars > old.stars) S.cleared[n] = { stars: stars, left: left, tries: tries };
     else if (left > old.left) old.left = left;
     if (n + 1 > S.maxLevel) S.maxLevel = n + 1;
-    S.cur = n + 1;
+    // 弹珠共 200 关，通关最后一关后 cur 不能指向 201（load 会夹回 200，导致"下一关 201"点了个寂寞）
+    S.cur = Math.min(n + 1, 200);
     S.totalWin++;
     save();
   }

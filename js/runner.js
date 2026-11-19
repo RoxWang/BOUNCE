@@ -73,6 +73,7 @@ B.Runner = (function () {
       lives: 3 + (up.lives || 0), maxLives: 3 + (up.lives || 0),
       shield: up.shield || 0,
       coins: 0,                  // 本局已攒金币
+      banked: false,             // 本局金币是否已入账（die / 退出结算 只算一次）
       dead: false, t: 0, shake: 0, invuln: 0,
       _reachBad: 0,             // 自测用：出现过"缝够不着"的次数，正常应为 0
       _picked: 0                // 自测用：吃到的道具数
@@ -191,11 +192,21 @@ B.Runner = (function () {
     st.score += dt * 11;
   }
 
+  // 本局金币入账：死亡或中途退出都走这里，banked 保证只结算一次。
+  // 和 hop/rail 的 cashOut 对齐——玩家随时能停，退大厅不该白跑一局丢光金币。
+  function cashOut() {
+    if (!st || st.banked) return 0;
+    st.banked = true;
+    var total = Math.round(st.coins);
+    if (total > 0) B.U.addCoins(total);
+    return total;
+  }
+
   function die() {
     st.dead = true;
     var s = Math.floor(st.score);
     if (s > st.best) { st.best = s; saveBest(s); }
-    B.U.addCoins(st.coins);   // 本局金币存进合集金库（与弹珠模式共用）
+    cashOut();   // 本局金币存进合集金库（与弹珠模式共用）
   }
 
   // ---------- 绘制（世界坐标，主循环已设好变换）----------
@@ -294,6 +305,7 @@ B.Runner = (function () {
     init: init, update: update, draw: draw,
     setTarget: setTarget, nudge: nudge, setDir: setDir, restart: restart,
     state: function () { return st; },
+    cashOut: cashOut,
     best: loadBest,
     // 经济 / 强化接口（给 UI 的商店与大厅进度用）
     shopData: function () { return { wallet: B.U.coins(), up: loadUp(), defs: UP }; },

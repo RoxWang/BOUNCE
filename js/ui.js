@@ -21,6 +21,7 @@ B.UI = (function () {
     if (Game.g.mode !== 'runner' && Game.g.mode !== 'hop' && Game.g.mode !== 'rail') return;
     if (Game.g.mode === 'hop' && B.Hop && B.Hop.cashOut) B.Hop.cashOut();  // 退出前结算本局金币
     if (Game.g.mode === 'rail' && B.Rail && B.Rail.cashOut) B.Rail.cashOut();
+    if (Game.g.mode === 'runner' && B.Runner && B.Runner.cashOut) B.Runner.cashOut();  // 中途退出也结算，不让玩家白跑
     if (B.Rail && B.Rail.setPaused) B.Rail.setPaused(false);
     Game.g.mode = 'marble';
     Game.load(1);
@@ -396,6 +397,9 @@ B.UI = (function () {
     $('hudGoal').textContent = '生成中…';
     $('hudAuto').textContent = '';
     setTimeout(function () {
+      // 24ms 内玩家可能 Esc / 点返回切到了别的页面；此时别再把关卡加载起来，
+      // 否则界面停在大厅、主循环却在后台跑目标关，状态与画面不一致。
+      if (cur !== null) return;
       Game.load(n);
       syncHud(true);
     }, 24);

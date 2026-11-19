@@ -59,6 +59,9 @@ B.Game = (function () {
     if (B.Render && B.Render.setInsets) B.Render.setInsets(54, 124);  // 恢复弹珠的下边距
     if (B.Render) B.Render.resize();               // 重新算缩放，适配新尺寸
     g.board = Bd.fromLevel(lv);
+    // 过关奖励要按"本关目标砖数"算，必须在清场前记下来：finish() 时目标已被打光，现场数不到。
+    // 旧代码读 g.level.targetsCount（关卡对象从没这个字段）→ 恒为 1 → 多目标关少发金币。
+    g.targetCount = Bd.countTargets(g.board);
     g.segs = st.segs;
     var mercy = Meta.mercyBalls(n);
     g.totalBalls = (g.level.balls || 4) + st.extraBalls + mercy;
@@ -320,7 +323,7 @@ B.Game = (function () {
     if ((g.state !== 'aim' && g.state !== 'fly') || g.balls <= 0) return;
     var st = Meta.stats();
     // 先存快照，撤回用（只在波次之间可撤回）
-    g.snap = { board: Bd.clone(g.board), balls: g.balls, combo: g.combo };
+    g.snap = { board: Bd.clone(g.board), balls: g.balls, combo: g.combo, coinRun: g.coinRun, lastBall: g.lastBall };
     g.balls--;
     g.shotsUsed++;
     g.lastBall = g.balls === 0;   // 这是最后一颗：这发清完就是绝杀
@@ -493,7 +496,7 @@ B.Game = (function () {
     g.state = 'over';
     g.overT = 0;
     var n = g.n;
-    var targets = g.level.targetsCount || 1;
+    var targets = g.targetCount || 1;   // load 时记下的初始目标数（清场后现场数不到）
     var coin = 0, stars = 0, clutch = false;
     if (won) {
       // 绝杀（clutch）：用最后一颗球清掉最后一个目标。一局里最值钱的瞬间。
@@ -528,6 +531,9 @@ B.Game = (function () {
     g.board = g.snap.board;
     g.balls = g.snap.balls;
     g.combo = g.snap.combo;
+    // 金币砖会随棋盘复原，已入账的本局金币也必须一起回退，否则"打碎金币砖→撤回→再打"能无限刷钱
+    g.coinRun = g.snap.coinRun || 0;
+    g.lastBall = !!g.snap.lastBall;
     g.shots = [];          // 撤回只在两波之间可用，清掉在场的所有球
     g.snap = null;
     g.shotsUsed = Math.max(0, g.shotsUsed - 1);
