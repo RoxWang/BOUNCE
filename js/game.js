@@ -143,7 +143,7 @@ B.Game = (function () {
     B.Runner.init();
     var pb = document.getElementById('phaseBanner');
     if (pb) {
-      pb.innerHTML = '无尽冲刺<small>方向键 / 拖动 躲开下落方块 —— 活得越久越好</small>';
+      pb.innerHTML = '无尽冲刺';   // 横幅只报游戏名；操作说明统一在「玩法」页，不压画面
       pb.classList.remove('hidden'); pb.classList.add('show');
       setTimeout(function () { pb.classList.remove('show'); setTimeout(function () { pb.classList.add('hidden'); }, 420); }, 2600);
     }

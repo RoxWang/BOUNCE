@@ -64,15 +64,6 @@ kbd{
 .stat.flash b{animation:pop .28s ease-out}
 @keyframes pop{0%{transform:scale(1.5);filter:brightness(2)}100%{transform:scale(1)}}
 
-.autoline{
-  position:absolute;left:50%;bottom:96px;transform:translateX(-50%);
-  font-size:13.5px;color:var(--t2);background:rgba(12,14,23,.8);
-  border:1px solid var(--line);border-radius:20px;padding:7px 18px;white-space:nowrap;
-  backdrop-filter:blur(6px);transition:.2s;
-}
-.autoline.warn{color:var(--red);border-color:rgba(255,90,90,.4)}
-.autoline.good{color:var(--green);border-color:rgba(70,224,138,.4)}
-
 /* 按钮收在右下角一小簇，中间和底部大片区域留给拖动瞄准。
    之前铺满整行会把发射点（画面正下方）压住，玩家按下去点到的是按钮，不是画面。 */
 #hud .bottom{
@@ -312,9 +303,8 @@ kbd{
   background:linear-gradient(180deg,var(--cyan),#1fa8d8);border-color:transparent;
 }
 .hk.slide{color:#04121a;background:linear-gradient(180deg,#ffd06a,#e09b12);border-color:transparent}
-/* 跳跃拾金 / 轨道狂奔：顶栏不重复显示合集金币（画布内已有本局数字）；提示条是空的，直接不占位 */
+/* 跳跃拾金 / 轨道狂奔：顶栏不重复显示合集金币（画布内已有本局数字） */
 #hud.hop-mode #hudCoin{display:none}
-#hud.hop-mode .autoline{display:none}
 @media (max-width:640px){
   .hk{width:54px;height:54px;font-size:22px}
   .hk.jump{width:64px;height:64px;font-size:27px}

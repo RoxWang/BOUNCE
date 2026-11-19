@@ -286,11 +286,8 @@ B.Runner = (function () {
       ctx.fillText('本局金币 +' + st.coins + '  ·  合集金库 ' + B.U.coins(), W / 2, H / 2 + 44);
       ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '700 18px "PingFang SC",sans-serif';
       ctx.fillText('点击 / 空格 重来', W / 2, H / 2 + 86);
-    } else {
-      ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.font = '700 13px "PingFang SC",sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('← → 或拖动屏幕 躲避下落方块', W / 2, H - 22);
     }
+    // 操作提示不在游戏画面内显示：统一放在「玩法」页，避免压住画面主体。
   }
 
   return {

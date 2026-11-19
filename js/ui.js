@@ -427,9 +427,9 @@ B.UI = (function () {
       $('btnUndo').classList.add('hidden');
       $('btnNext').classList.add('hidden');
       $('btnRestart').classList.add('hidden');
+      // 游戏画面内不放任何操作提示：玩法说明统一在「玩法」页，避免提示压住画面/缩小窗口时跑到中间
       var al = $('hudAuto');
-      al.textContent = '← → 或拖动屏幕 · 撞到就结束 · 空格 / 点击重来';
-      al.style.opacity = 1; al.className = 'autoline';
+      if (al) { al.textContent = ''; al.style.display = 'none'; }
       return;
     }
     if (g.mode === 'hop') {
@@ -443,7 +443,7 @@ B.UI = (function () {
       $('btnNext').classList.add('hidden');
       $('btnRestart').classList.add('hidden');
       var alh = $('hudAuto');
-      alh.textContent = ''; alh.style.opacity = 0; alh.className = 'autoline';
+      if (alh) alh.style.display = 'none';
       return;
     }
     if (g.mode === 'rail') {
@@ -456,7 +456,7 @@ B.UI = (function () {
       $('btnNext').classList.add('hidden');
       $('btnRestart').classList.add('hidden');
       var alr = $('hudAuto');
-      alr.textContent = ''; alr.style.opacity = 0; alr.className = 'autoline';
+      if (alr) alr.style.display = 'none';
       return;
     }
     var sb2 = document.querySelector('.statusbar');
@@ -481,27 +481,10 @@ B.UI = (function () {
       if (!force && g.combo > 0) flash('hudCombo'); lastCombo = g.combo;
     }
 
+    // 游戏画面内不放任何操作提示：瞄准/连发/虚线含义统一写在「玩法」页。
+    // 这条曾经用 bottom:96px 钉在视口上，缩小窗口时会压到画布中央，且在画面里剧透"这发能清完"。
     var line = $('hudAuto');
-    if (g.state === 'aim' || (g.state === 'fly' && g.aiming)) {
-      var txt;
-      if (g.preview && g.preview.cleared) {
-        txt = '这一发能清完目标 —— 松手';
-        line.className = 'autoline good';
-      } else if (g.balls === 1) {
-        txt = '最后一颗 · 打完就见分晓';
-        line.className = 'autoline warn';
-      } else if (g.aiming) {
-        txt = '松手发射 · 虚线就是球会走的路';
-        line.className = 'autoline';
-      } else {
-        txt = '拖动定方向 · 球从边框打进来';   // 四面都是墙，上下左右都能进
-        line.className = 'autoline';
-      }
-      line.textContent = txt;
-      line.style.opacity = 1;
-    } else {
-      line.style.opacity = 0;
-    }
+    if (line) line.style.display = 'none';
 
     $('hudBalls').style.color = g.balls === 1 && (g.state === 'aim' || g.state === 'fly') ? 'var(--red)' : '';
     $('btnUndo').classList.toggle('hidden', !(g.state === 'aim' && g.snap));
